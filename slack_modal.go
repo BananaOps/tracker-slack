@@ -22,10 +22,8 @@ func generateModalRequest() slack.ModalViewRequest {
 	changelog := inputText("changelog", "Description", "", "", true)
 	changelog.Optional = true
 
-
 	endDateTime := inputEndDatetime("")
 	endDateTime.Optional = true
-	
 
 	modalRequest := slack.ModalViewRequest{
 		Type:       slack.VTModal,
@@ -67,35 +65,68 @@ func blockMessage(tracker tracker) []slack.Block {
 
 	var priorityEnv map[string]string = map[string]string{"PROD": ":prod:", "PREP": ":prep:", "UAT": ":uat:"}
 
+	//To convert print datetime in location
+	t := time.Unix(tracker.Datetime, 0).UTC()
+	location, err := time.LoadLocation("Europe/Paris")
+	if err != nil {
+		fmt.Println(err)
+	}
+	timeInUTCLocation := t.In(location)
+	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
+
 	summary := fmt.Sprintf("%s \n \n", tracker.Summary)
 	project := fmt.Sprintf(":rocket: *Project:* %s \n", tracker.Project)
-	date := fmt.Sprintf(":date: *Date:* %s \n", time.Unix(tracker.Datetime, 0).Format("2006-01-02 15:04"))
+	date := fmt.Sprintf(":date: *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
 	impact := fmt.Sprintf(":boom: *Impact:* %s \n", tracker.Impact)
+	releaseTeam := fmt.Sprint(":slack_notification: *Notification Release Team:* @release-team \n")
 	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
-	stackholder := fmt.Sprintf(":dart: *Stackholder:* %s \n", strings.Join(users, ", "))
-	ticket := fmt.Sprintf(":ticket: *Ticket Issue:* %s \n", tracker.Ticket)
-	pullRequest := fmt.Sprintf(":github: *Pull Request:* %s \n", tracker.PullRequest)
 	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
+
+	var stackholder string
+	if len(users) > 0 {
+		stackholder = fmt.Sprintf(":dart: *Stackholder:* %s \n", strings.Join(users, ", "))
+	}
+
+	var pullRequest string
+	if tracker.PullRequest != "" {
+		pullRequest = fmt.Sprintf(":github: *Pull Request:* %s \n", tracker.PullRequest)
+	}
+
+	var ticket string
+	if tracker.Ticket != "" {
+		ticket = fmt.Sprintf(":ticket: *Ticket Issue:* %s \n", tracker.Ticket)
+	}
+	var text string
+	if tracker.ReleaseTeam == "Yes" {
+		text = summary + project + date + environment + impact + owner + releaseTeam + stackholder + ticket + pullRequest + description
+	} else {
+		text = summary + project + date + environment + impact + owner + stackholder + ticket + pullRequest + description
+	}
 
 	// Define the modal blocks
 	blocks := []slack.Block{
 		slack.NewSectionBlock(
-			slack.NewTextBlockObject("mrkdwn", summary+project+date+environment+impact+owner+stackholder+ticket+pullRequest+description, false, false),
+			slack.NewTextBlockObject("mrkdwn", text, false, false),
 			nil,
 			nil,
 		),
 		slack.NewActionBlock(
 			"actionblock",
-			slack.NewButtonBlockElement(
+			/*slack.NewButtonBlockElement(
 				"action-edit",
 				"click_me_123",
 				slack.NewTextBlockObject("plain_text", ":pencil: Edit", true, false),
-			),
+			),*/
 			slack.NewButtonBlockElement(
 				"action-approvers",
 				"click_me_123",
 				slack.NewTextBlockObject("plain_text", ":ok: Approval", true, false),
+			),
+			slack.NewButtonBlockElement(
+				"action-reject",
+				"click_me_123",
+				slack.NewTextBlockObject("plain_text", ":x: Reject", true, false),
 			),
 		), /*
 			slack.NewActionBlock(
@@ -277,7 +308,6 @@ func inputEndDatetime(value string) *slack.InputBlock {
 		slack.NewDateTimePickerBlockElement("datetimepicker-action"),
 	)
 }
-
 
 func inputStatus() *slack.ActionBlock {
 	return slack.NewActionBlock(

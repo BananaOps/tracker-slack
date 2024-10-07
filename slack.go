@@ -31,6 +31,7 @@ type tracker struct {
 	Owner        string   `json:"owner"`
 	Stackholders []string `json:"stackholders"`
 	EndDate      int64    `json:"end_date"`
+	ReleaseTeam  string   `json:"release_team"`
 }
 
 // This was taken from the slash example
@@ -127,6 +128,7 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 		tracker.PullRequest = values["pull_request"]["url_text_input-action"].Value
 		tracker.Description = values["changelog"]["text_input-action"].Value
 		tracker.Owner = i.User.Name
+		tracker.ReleaseTeam = values["release"]["select_input-release"].SelectedOption.Value
 
 		// Post tracker event
 		go postTrackerEvent(tracker)
@@ -174,7 +176,10 @@ func handleBlockActions(callback slack.InteractionCallback) {
 			updateMessage(callback.Channel.ID, callback.Message.Timestamp, callback.View.Hash, callback.View.ID, tracker)
 
 		case "action-approvers":
-			postThreadMessage(callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+			postThreadApproval(callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+		
+		case "action-reject":
+			postThreadReject(callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 		}
 
 	}
@@ -201,7 +206,7 @@ func updateMessage(channelID string, messageTs string, viewHash string, viewId s
 	}
 }
 
-func postThreadMessage(channelID string, messageTs string, approver string) {
+func postThreadApproval(channelID string, messageTs string, approver string) {
 	api := slack.New(botToken)
 
 	message := fmt.Sprintf("Approved by <@%s>", approver)
@@ -215,33 +220,46 @@ func postThreadMessage(channelID string, messageTs string, approver string) {
 	}
 }
 
-type Payload struct {
-    Attributes struct {
-        Message     string `json:"message"`
-        Priority    int `json:"priority"`
-        Service     string `json:"service"`
-        Source      string `json:"source"`
-        Status      int `json:"status"`
-        Type        int `json:"type"`
-        Environment int `json:"environment"`
-        Impact      bool `json:"impact"`
-		StartDate   string `json:"start_date"`
-		EndDate     string `json:"end_date"`
-    } `json:"attributes"`
-    Links struct {
-        PullRequestLink string `json:"pull_request_link"`
-        Ticket          string `json:"ticket"`
-    } `json:"links"`
-    Title string `json:"title"`
+func postThreadReject(channelID string, messageTs string, approver string) {
+	api := slack.New(botToken)
+
+	message := fmt.Sprintf("Rejected by <@%s>", approver)
+	_, _, err := api.PostMessage(
+		channelID,
+		slack.MsgOptionText(message, false),
+		slack.MsgOptionTS(messageTs),
+	)
+	if err != nil {
+		fmt.Printf("Error posting message to thread: %v", err)
+	}
 }
 
-
+type Payload struct {
+	Attributes struct {
+		Message     string `json:"message"`
+		Priority    int    `json:"priority"`
+		Service     string `json:"service"`
+		Source      string `json:"source"`
+		Status      int    `json:"status"`
+		Type        int    `json:"type"`
+		Environment int    `json:"environment"`
+		Impact      bool   `json:"impact"`
+		StartDate   string `json:"start_date"`
+		EndDate     string `json:"end_date"`
+		Owner       string `json:"owner"`
+	} `json:"attributes"`
+	Links struct {
+		PullRequestLink string `json:"pull_request_link"`
+		Ticket          string `json:"ticket"`
+	} `json:"links"`
+	Title string `json:"title"`
+}
 
 var environment map[string]int = map[string]int{"PROD": 7, "PREP": 6, "UAT": 4}
 
 func postTrackerEvent(tracker tracker) {
 
-    var data Payload
+	var data Payload
 
 	data.Attributes.Message = tracker.Summary
 	data.Attributes.Priority = 1
@@ -256,28 +274,29 @@ func postTrackerEvent(tracker tracker) {
 		tracker.EndDate = tracker.Datetime + 3600
 	}
 	data.Attributes.EndDate = time.Unix(tracker.EndDate, 0).Format("2006-01-02T15:04:05Z")
+	data.Attributes.Owner = tracker.Owner
 	data.Links.PullRequestLink = tracker.PullRequest
 	data.Links.Ticket = tracker.Ticket
 	data.Title = tracker.Summary
-	
-    payloadBytes, err := json.Marshal(data)
-    if err != nil {
-        // handle err
-    }
+
+	payloadBytes, err := json.Marshal(data)
+	if err != nil {
+		// handle err
+	}
 
 	//fmt.Println(string(payloadBytes))
-	
-    body := bytes.NewReader(payloadBytes)
 
-    req, err := http.NewRequest("POST",  os.Getenv("TRACKER_HOST") + "/api/v1alpha1/event", body)
-    if err != nil {
-        // handle err
-    }
-    req.Header.Set("Content-Type", "application/json")
+	body := bytes.NewReader(payloadBytes)
 
-    resp, err := http.DefaultClient.Do(req)
-    if err != nil {
-        // handle err
-    }
-    defer resp.Body.Close()
+	req, err := http.NewRequest("POST", os.Getenv("TRACKER_HOST")+"/api/v1alpha1/event", body)
+	if err != nil {
+		// handle err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		// handle err
+	}
+	defer resp.Body.Close()
 }
