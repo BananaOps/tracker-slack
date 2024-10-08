@@ -74,7 +74,7 @@ func blockMessage(tracker tracker) []slack.Block {
 	timeInUTCLocation := t.In(location)
 	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
 
-	summary := fmt.Sprintf("%s \n \n", tracker.Summary)
+	summary := fmt.Sprintf("*%s* \n \n", tracker.Summary)
 	project := fmt.Sprintf(":rocket: *Project:* %s \n", tracker.Project)
 	date := fmt.Sprintf(":date: *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
@@ -113,11 +113,11 @@ func blockMessage(tracker tracker) []slack.Block {
 		),
 		slack.NewActionBlock(
 			"actionblock",
-			/*slack.NewButtonBlockElement(
+			slack.NewButtonBlockElement(
 				"action-edit",
 				"click_me_123",
 				slack.NewTextBlockObject("plain_text", ":pencil: Edit", true, false),
-			),*/
+			),
 			slack.NewButtonBlockElement(
 				"action-approvers",
 				"click_me_123",
@@ -128,19 +128,21 @@ func blockMessage(tracker tracker) []slack.Block {
 				"click_me_123",
 				slack.NewTextBlockObject("plain_text", ":x: Reject", true, false),
 			),
-		), /*
-			slack.NewActionBlock(
-				"status",
-				slack.NewOptionsSelectBlockElement(
-					slack.Option,
-					slack.NewTextBlockObject("plain_text", "Select status", true, false),
-					"select_action-priority",
-					slack.NewOptionBlockObject("start", slack.NewTextBlockObject("start", ":start-button: start", true, false), nil),
-					slack.NewOptionBlockObject("pause", slack.NewTextBlockObject("plain_text", ":pause: Pause", true, false), nil),
-					slack.NewOptionBlockObject("cancelled", slack.NewTextBlockObject("plain_text", ":x: Cancelled", true, false), nil),
-					slack.NewOptionBlockObject("done", slack.NewTextBlockObject("plain_text", ":white_check_mark: Done", true, false), nil),
-				),
-			),*/
+		),
+		slack.NewActionBlock(
+			"status",
+			slack.NewOptionsSelectBlockElement(
+				"static_select",
+				slack.NewTextBlockObject("plain_text", "Select status", true, false),
+				"action",
+				//slack.NewOptionBlockObject("edit", slack.NewTextBlockObject("plain_text", ":note: Edit", true, false), nil),
+				slack.NewOptionBlockObject("in_progress", slack.NewTextBlockObject("plain_text", ":loading: InProgress", true, false), nil),
+				slack.NewOptionBlockObject("pause", slack.NewTextBlockObject("plain_text", ":double_vertical_bar: Pause", true, false), nil),
+				slack.NewOptionBlockObject("cancelled", slack.NewTextBlockObject("plain_text", ":x: Cancelled", true, false), nil),
+				slack.NewOptionBlockObject("post_poned", slack.NewTextBlockObject("plain_text", ":hourglass_flowing_sand: PostPoned", true, false), nil),
+				slack.NewOptionBlockObject("done", slack.NewTextBlockObject("plain_text", ":white_check_mark: Done", true, false), nil),
+			),
+		),
 	}
 
 	return blocks
@@ -317,7 +319,7 @@ func inputStatus() *slack.ActionBlock {
 			slack.NewTextBlockObject("plain_text", "Select status", true, false),
 			"select_action-priority",
 			slack.NewOptionBlockObject("start", slack.NewTextBlockObject("start", ":start-button: start", true, false), nil),
-			slack.NewOptionBlockObject("pause", slack.NewTextBlockObject("plain_text", ":pause: Pause", true, false), nil),
+			slack.NewOptionBlockObject("pause", slack.NewTextBlockObject("plain_text", ":double_vertical_bar: Pause", true, false), nil),
 			slack.NewOptionBlockObject("cancelled", slack.NewTextBlockObject("plain_text", ":x: Cancelled", true, false), nil),
 			slack.NewOptionBlockObject("done", slack.NewTextBlockObject("plain_text", ":white_check_mark: Done", true, false), nil),
 		),
