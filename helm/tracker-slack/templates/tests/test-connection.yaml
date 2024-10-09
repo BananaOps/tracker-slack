@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "tracker-slack.fullname" . }}-test-connection"
+  labels:
+    {{- include "tracker-slack.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['{{ include "tracker-slack.fullname" . }}:{{ .Values.service.port }}/status']
+  restartPolicy: Never
