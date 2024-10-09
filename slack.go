@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 
 	"time"
@@ -133,6 +134,8 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 		tracker.Owner = i.User.Name
 		tracker.ReleaseTeam = values["release"]["select_input-release"].SelectedOption.Value
 
+		fmt.Println("debug date",tracker.Datetime, tracker.EndDate )
+
 		api := slack.New(botToken)
 		var channelID string
 		var slackTimestamp string
@@ -141,29 +144,10 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 
 		if i.View.CallbackID == "edit" {
 
-			/*
-				event := getTrackerEvent(messageTimestamp)
-				//fmt.Println("event:", event)
-				if event.Event.Attributes.Impact {
-					tracker.Impact = "Yes"
-				} else {
-					tracker.Impact = "No"
-				}
+			//event := getTrackerEvent(messageTimestamp)
+			//tracker.Owner = event.Event.Attributes.Owner
 
-				tracker.SlackId = event.Event.Metadata.SlackId
-				tracker.EndDate, _ = strconv.ParseInt(event.Event.Attributes.EndDate, 10, 64)
-				tracker.Datetime, _ = strconv.ParseInt(event.Event.Attributes.StartDate, 10, 64)
-				tracker.Owner = event.Event.Attributes.Owner
-				tracker.Project = event.Event.Attributes.Service
-				tracker.Environment = event.Event.Attributes.Environment
-
-				tracker.Ticket = event.Event.Links.Ticket
-				tracker.PullRequest = event.Event.Links.PullRequestLink
-				tracker.Description = event.Event.Attributes.Message
-				//tracker.Stackholders = event.Event.Attributes.Stackholders
-				tracker.ReleaseTeam = event.Event.Attributes.Owner
-			*/
-
+			
 			channelID, slackTimestamp, _, err := api.UpdateMessage(messageChannel,
 				messageTimestamp,
 				slack.MsgOptionBlocks(blocks...),
@@ -217,7 +201,7 @@ func handleBlockActions(callback slack.InteractionCallback, w http.ResponseWrite
 			messageChannel = callback.Channel.ID
 
 			event := getTrackerEvent(messageTimestamp)
-
+			//fmt.Println("event:", event)
 			api := slack.New(botToken)
 			view := generateModalRequest(event.Event)
 			view.CallbackID = "edit"
@@ -323,17 +307,17 @@ type EventReponse struct {
 		Type        string `json:"type"`
 		Environment string `json:"environment"`
 		Impact      bool   `json:"impact"`
-		StartDate   string `json:"start_date"`
-		EndDate     string `json:"end_date"`
+		StartDate   string `json:"startDate"`
+		EndDate     string `json:"endDate"`
 		Owner       string `json:"owner"`
 	} `json:"attributes"`
 	Links struct {
-		PullRequestLink string `json:"pull_request_link"`
+		PullRequestLink string `json:"pullRequestLink"`
 		Ticket          string `json:"ticket"`
 	} `json:"links"`
 	Metadata struct {
-		SlackId   string `json:"slack_id"`
-		createdAt string `json:"created_at"`
+		SlackId   string `json:"slackId"`
+		createdAt string `json:"createdAt"`
 		Duration  string `json:"duration"`
 		Id        string `json:"id"`
 	}
@@ -366,6 +350,17 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.Owner = tracker.Owner
 	data.Links.PullRequestLink = tracker.PullRequest
 	data.Links.Ticket = tracker.Ticket
+	/*
+	if IsValidURL(tracker.Ticket) && tracker.Ticket != "" {
+		data.Links.PullRequestLink = tracker.PullRequest
+	} else {
+		fmt.Printf("Invalid PullRequest URL: %s\n", tracker.PullRequest)
+	}
+	if IsValidURL(tracker.Ticket) && tracker.Ticket != "" {
+		data.Links.Ticket = tracker.Ticket
+	} else {
+		fmt.Printf("Invalid Ticket URL: %s\n", tracker.Ticket)
+	}*/
 	data.Title = tracker.Summary
 	data.SlackId = tracker.SlackId
 
@@ -407,8 +402,16 @@ func updateTrackerEvent(tracker tracker) {
 	}
 	data.Attributes.EndDate = time.Unix(tracker.EndDate, 0).Format("2006-01-02T15:04:05Z")
 	data.Attributes.Owner = tracker.Owner
-	data.Links.PullRequestLink = tracker.PullRequest
-	data.Links.Ticket = tracker.Ticket
+	if IsValidURL(tracker.Ticket) && tracker.Ticket != "" {
+		data.Links.PullRequestLink = tracker.PullRequest
+	} else {
+		fmt.Printf("Invalid PullRequest URL: %s\n", tracker.PullRequest)
+	}
+	if IsValidURL(tracker.Ticket) && tracker.Ticket != "" {
+		data.Links.Ticket = tracker.Ticket
+	} else {
+		fmt.Printf("Invalid Ticket URL: %s\n", tracker.Ticket)
+	}
 	data.Title = tracker.Summary
 	data.SlackId = tracker.SlackId
 
@@ -451,4 +454,19 @@ func getTrackerEvent(id string) Response {
 		log.Fatalf("Erreur lors de la lecture du corps : %s", err)
 	}
 	return data
+}
+
+// Fonction pour valider si une string est une URL valide
+func IsValidURL(str string) bool {
+	u, err := url.ParseRequestURI(str)
+	if err != nil {
+		return false
+	}
+
+	// Vérifier si le schéma et l'hôte sont présents (http, https, etc.)
+	if u.Scheme == "" || u.Host == "" {
+		return false
+	}
+
+	return true
 }

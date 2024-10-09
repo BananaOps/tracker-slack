@@ -10,10 +10,10 @@ import (
 
 func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 
-	pullRequest := inputUrl("pull_request", "Pull Request", event.Links.PullRequestLink, ":github:")
+	pullRequest := inputUrl("pull_request", "Link Pull Request", event.Links.PullRequestLink, ":github:")
 	pullRequest.Optional = true
 
-	ticket := inputUrl("ticket", "Ticket Issue", event.Links.Ticket, ":ticket:")
+	ticket := inputUrl("ticket", "Link Ticket Issue", event.Links.Ticket, ":ticket:")
 	ticket.Optional = true
 
 	stackholders := inputMultiUser("stackholders", ":dart: Stackholders", []string{})
@@ -22,7 +22,7 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 	changelog := inputText("changelog", "Description", event.Attributes.Message, "", true)
 	changelog.Optional = true
 
-	endDateTime := inputEndDatetime("")
+	endDateTime := inputDatetime("enddatetime", "End Date", event.Attributes.EndDate)
 	endDateTime.Optional = true
 
 	modalRequest := slack.ModalViewRequest{
@@ -39,7 +39,7 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 				inputImpact(event.Attributes.Impact),
 				inputReleaseTeam(false),
 				//inputAction(),
-				inputDatetime(""),
+				inputDatetime("datetime", "Start Date", event.Attributes.StartDate),
 				endDateTime,
 				stackholders,
 				ticket,
@@ -311,37 +311,33 @@ func inputAction() *slack.InputBlock {
 }
 */
 
-func inputDatetime(value string) *slack.InputBlock {
-	if value != "" {
-		return slack.NewInputBlock(
-			"datetime",
-			slack.NewTextBlockObject("plain_text", ":date: Start Date", false, false),
-			slack.NewTextBlockObject("plain_text", value, false, false),
-			slack.NewDateTimePickerBlockElement("datetimepicker_input-action"),
-		)
-	}
-	return slack.NewInputBlock(
-		"datetime",
-		slack.NewTextBlockObject("plain_text", ":date: Start Date", false, false),
-		nil,
-		slack.NewDateTimePickerBlockElement("datetimepicker-action"),
-	)
-}
+func inputDatetime(blockId string, blockText string, value string) *slack.InputBlock {
+	block := slack.NewDateTimePickerBlockElement("datetimepicker-action")
+	if value == ""  && blockId == "datetime" {
+		block.InitialDateTime = time.Now().Unix()
+	} else if value == "" && blockId == "enddatetime" {
+		block.InitialDateTime = time.Now().Add(time.Hour * 1).Unix()
+	} else {
+		layout := time.RFC3339
+		t, err := time.Parse(layout, value)
+		if err != nil {
+			fmt.Println("Erreur lors du parsing de la date :", err)
+		}
 
-func inputEndDatetime(value string) *slack.InputBlock {
-	if value != "" {
-		return slack.NewInputBlock(
-			"enddatetime",
-			slack.NewTextBlockObject("plain_text", ":date: End Date", false, false),
-			slack.NewTextBlockObject("plain_text", value, false, false),
-			slack.NewDateTimePickerBlockElement("datetimepicker_input-action"),
-		)
+		// Convertir la date en timestamp Unix (int64)
+		timestamp := t.Unix()
+
+		eventDatetime := timestamp
+		if err != nil {
+			fmt.Println(err, "\n")
+		}
+		block.InitialDateTime = eventDatetime
 	}
 	return slack.NewInputBlock(
-		"enddatetime",
-		slack.NewTextBlockObject("plain_text", ":date: End Date", false, false),
+		blockId,
+		slack.NewTextBlockObject("plain_text", fmt.Sprintf(":date: %s", blockText), false, false),
 		nil,
-		slack.NewDateTimePickerBlockElement("datetimepicker-action"),
+		block,
 	)
 }
 
