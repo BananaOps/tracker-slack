@@ -37,7 +37,7 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 				inputText("project", "Project", event.Attributes.Service, ":rocket:", false),
 				inputEnv(event.Attributes.Environment),
 				inputImpact(event.Attributes.Impact),
-				inputReleaseTeam(false),
+				inputReleaseTeam(event.Attributes.Notification),
 				//inputAction(),
 				inputDatetime("datetime", "Start Date", event.Attributes.StartDate),
 				endDateTime,
