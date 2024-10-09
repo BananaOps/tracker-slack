@@ -8,10 +8,13 @@ env:
     host: "tracker.local"
     slack: tracker
 
-slack: 
-  verification_token: ""
-  bot_token: ""
-  signing_secret: ""
+secret: 
+  create: true
+  name: ""
+  slack: 
+    verification_token: ""
+    bot_token: ""
+    signing_secret: ""
 
 image:
   repository: bananaops/tracker-slack

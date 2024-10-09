@@ -55,17 +55,17 @@ spec:
             - name: SLACK_VERIFICATION_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tracker-slack.fullname" . }}
+                  name: {{ include "tracker-slack.secretName" . }}
                   key: SLACK_VERIFICATION_TOKEN
             - name: SLACK_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tracker-slack.fullname" . }}
+                  name: {{ include "tracker-slack.secretName" . }}
                   key: SLACK_BOT_TOKEN
             - name: SLACK_SIGNING_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tracker-slack.fullname" . }}
+                  name: {{ include "tracker-slack.secretName" . }}
                   key: SLACK_SIGNING_SECRET
           command:
             - /ko-app/tracker-slack
