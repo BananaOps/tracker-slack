@@ -8,18 +8,18 @@ import (
 	"github.com/slack-go/slack"
 )
 
-func generateModalRequest() slack.ModalViewRequest {
+func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 
-	pullRequest := inputUrl("pull_request", "Pull Request", "", ":github:")
+	pullRequest := inputUrl("pull_request", "Pull Request", event.Links.PullRequestLink, ":github:")
 	pullRequest.Optional = true
 
-	ticket := inputUrl("ticket", "Ticket Issue", "", ":ticket:")
+	ticket := inputUrl("ticket", "Ticket Issue", event.Links.Ticket, ":ticket:")
 	ticket.Optional = true
 
 	stackholders := inputMultiUser("stackholders", ":dart: Stackholders", []string{})
 	stackholders.Optional = true
 
-	changelog := inputText("changelog", "Description", "", "", true)
+	changelog := inputText("changelog", "Description", event.Attributes.Message, "", true)
 	changelog.Optional = true
 
 	endDateTime := inputEndDatetime("")
@@ -33,11 +33,11 @@ func generateModalRequest() slack.ModalViewRequest {
 		Close:      slack.NewTextBlockObject("plain_text", "Cancel", true, false),
 		Blocks: slack.Blocks{
 			BlockSet: []slack.Block{
-				inputText("summary", "Summary", "", "", false),
-				inputText("project", "Project", "", ":rocket:", false),
-				inputEnv(),
-				inputImpact(),
-				inputReleaseTeam(),
+				inputText("summary", "Summary", event.Title, "", false),
+				inputText("project", "Project", event.Attributes.Service, ":rocket:", false),
+				inputEnv(event.Attributes.Environment),
+				inputImpact(event.Attributes.Impact),
+				inputReleaseTeam(false),
 				//inputAction(),
 				inputDatetime(""),
 				endDateTime,
@@ -215,51 +215,84 @@ func inputPriority() *slack.InputBlock {
 	)
 }*/
 
-func inputImpact() *slack.InputBlock {
+func inputImpact(value bool) *slack.InputBlock {
+
+	block := slack.NewOptionsSelectBlockElement(
+		slack.OptTypeStatic,
+		slack.NewTextBlockObject("plain_text", "Change have an impact ?", true, false),
+		"select_input-impact",
+		slack.NewOptionBlockObject("Yes", slack.NewTextBlockObject("plain_text", "Yes", true, false), nil),
+		slack.NewOptionBlockObject("No", slack.NewTextBlockObject("plain_text", "No", true, false), nil),
+	)
+	if value {
+		block.InitialOption = slack.NewOptionBlockObject("Yes", slack.NewTextBlockObject("plain_text", "Yes", true, false), nil)
+	} else {
+		block.InitialOption = slack.NewOptionBlockObject("No", slack.NewTextBlockObject("plain_text", "No", true, false), nil)
+	}
+
 	return slack.NewInputBlock(
 		"impact",
 		slack.NewTextBlockObject("plain_text", ":boom: Impact", true, false),
 		nil,
-		slack.NewOptionsSelectBlockElement(
-			slack.OptTypeStatic,
-			slack.NewTextBlockObject("plain_text", "Change have an impact ?", true, false),
-			"select_input-impact",
-			slack.NewOptionBlockObject("Yes", slack.NewTextBlockObject("plain_text", "Yes", true, false), nil),
-			slack.NewOptionBlockObject("No", slack.NewTextBlockObject("plain_text", "No", true, false), nil),
-		),
+		block,
 	)
 }
 
-func inputReleaseTeam() *slack.InputBlock {
+func inputReleaseTeam(value bool) *slack.InputBlock {
+
+	block := slack.NewOptionsSelectBlockElement(
+		slack.OptTypeStatic,
+		slack.NewTextBlockObject("plain_text", "Need notify Release Team ?", true, false),
+		"select_input-release",
+		slack.NewOptionBlockObject("Yes", slack.NewTextBlockObject("plain_text", "Yes", true, false), nil),
+		slack.NewOptionBlockObject("No", slack.NewTextBlockObject("plain_text", "No", true, false), nil),
+	)
+
+	if value {
+		block.InitialOption = slack.NewOptionBlockObject("Yes", slack.NewTextBlockObject("plain_text", "Yes", true, false), nil)
+	} else {
+		block.InitialOption = slack.NewOptionBlockObject("No", slack.NewTextBlockObject("plain_text", "No", true, false), nil)
+	}
+
 	return slack.NewInputBlock(
 		"release",
 		slack.NewTextBlockObject("plain_text", ":question: Notify Release Team ", true, false),
 		nil,
-		slack.NewOptionsSelectBlockElement(
-			slack.OptTypeStatic,
-			slack.NewTextBlockObject("plain_text", "Need notify Release Team ?", true, false),
-			"select_input-release",
-			slack.NewOptionBlockObject("Yes", slack.NewTextBlockObject("plain_text", "Yes", true, false), nil),
-			slack.NewOptionBlockObject("No", slack.NewTextBlockObject("plain_text", "No", true, false), nil),
-		),
+		block,
 	)
 }
 
-func inputEnv() *slack.InputBlock {
+func inputEnv(value string) *slack.InputBlock {
+
+	block := slack.NewOptionsSelectBlockElement(
+		slack.OptTypeStatic,
+		slack.NewTextBlockObject("plain_text", "Select Environment", true, false),
+		"select_input-environment",
+		slack.NewOptionBlockObject("PROD", slack.NewTextBlockObject("plain_text", "PROD", true, false), nil),
+		slack.NewOptionBlockObject("PREP", slack.NewTextBlockObject("plain_text", "PREP", true, false), nil),
+		slack.NewOptionBlockObject("UAT", slack.NewTextBlockObject("plain_text", "UAT", true, false), nil),
+	)
+
+	if value == "production" {
+		block.InitialOption = slack.NewOptionBlockObject("PROD", slack.NewTextBlockObject("plain_text", "PROD", true, false), nil)
+	} else if value == "preproduction" {
+		block.InitialOption = slack.NewOptionBlockObject("PREP", slack.NewTextBlockObject("plain_text", "PREP", true, false), nil)
+	} else if value == "UAT" {
+		block.InitialOption = slack.NewOptionBlockObject("UAT", slack.NewTextBlockObject("plain_text", "UAT", true, false), nil)
+	} else {
+		block.InitialOption = slack.NewOptionBlockObject("PROD", slack.NewTextBlockObject("plain_text", "PROD", true, false), nil)
+	}
+
 	return slack.NewInputBlock(
 		"environment",
 		slack.NewTextBlockObject("plain_text", ":prod: Environment", true, false),
 		nil,
-		slack.NewOptionsSelectBlockElement(
-			slack.OptTypeStatic,
-			slack.NewTextBlockObject("plain_text", "Select Environment", true, false),
-			"select_input-environment",
-			slack.NewOptionBlockObject("PROD", slack.NewTextBlockObject("plain_text", "PROD", true, false), nil),
-			slack.NewOptionBlockObject("PREP", slack.NewTextBlockObject("plain_text", "PREP", true, false), nil),
-			slack.NewOptionBlockObject("UAT", slack.NewTextBlockObject("plain_text", "UAT", true, false), nil),
-		),
+		block,
 	)
 }
+
+// Not used for the moment
+/*
 func inputAction() *slack.InputBlock {
 	return slack.NewInputBlock(
 		"action",
@@ -276,6 +309,7 @@ func inputAction() *slack.InputBlock {
 		),
 	)
 }
+*/
 
 func inputDatetime(value string) *slack.InputBlock {
 	if value != "" {

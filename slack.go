@@ -86,7 +86,7 @@ func handleCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	api := slack.New(botToken)
-	view := generateModalRequest()
+	view := generateModalRequest(EventReponse{})
 	_, err = api.OpenView(s.TriggerID, view)
 	if err != nil {
 		fmt.Printf("Error opening view: %s", err)
@@ -136,9 +136,34 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 		api := slack.New(botToken)
 		var channelID string
 		var slackTimestamp string
+
 		blocks := blockMessage(tracker)
 
 		if i.View.CallbackID == "edit" {
+
+			/*
+				event := getTrackerEvent(messageTimestamp)
+				//fmt.Println("event:", event)
+				if event.Event.Attributes.Impact {
+					tracker.Impact = "Yes"
+				} else {
+					tracker.Impact = "No"
+				}
+
+				tracker.SlackId = event.Event.Metadata.SlackId
+				tracker.EndDate, _ = strconv.ParseInt(event.Event.Attributes.EndDate, 10, 64)
+				tracker.Datetime, _ = strconv.ParseInt(event.Event.Attributes.StartDate, 10, 64)
+				tracker.Owner = event.Event.Attributes.Owner
+				tracker.Project = event.Event.Attributes.Service
+				tracker.Environment = event.Event.Attributes.Environment
+
+				tracker.Ticket = event.Event.Links.Ticket
+				tracker.PullRequest = event.Event.Links.PullRequestLink
+				tracker.Description = event.Event.Attributes.Message
+				//tracker.Stackholders = event.Event.Attributes.Stackholders
+				tracker.ReleaseTeam = event.Event.Attributes.Owner
+			*/
+
 			channelID, slackTimestamp, _, err := api.UpdateMessage(messageChannel,
 				messageTimestamp,
 				slack.MsgOptionBlocks(blocks...),
@@ -159,6 +184,9 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 			go updateTrackerEvent(tracker)
 
 		} else {
+
+			//blocks := blockMessage(tracker)
+
 			channelID, slackTimestamp, err = api.PostMessage(os.Getenv("TRACKER_SLACK_CHANNEL"),
 				slack.MsgOptionBlocks(blocks...),
 			)
@@ -188,15 +216,17 @@ func handleBlockActions(callback slack.InteractionCallback, w http.ResponseWrite
 			messageTimestamp = callback.Message.Timestamp
 			messageChannel = callback.Channel.ID
 
+			event := getTrackerEvent(messageTimestamp)
+
 			api := slack.New(botToken)
-			view := generateModalRequest()
+			view := generateModalRequest(event.Event)
 			view.CallbackID = "edit"
 			_, err := api.OpenView(callback.TriggerID, view)
 			if err != nil {
 				fmt.Printf("Error Open view: %s", err)
 			}
 			w.WriteHeader(http.StatusOK)
-			
+
 			//postThreadAction("edited", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 
 		case "action-approvers":
@@ -283,13 +313,44 @@ type Payload struct {
 	SlackId string `json:"slack_id"`
 }
 
+type EventReponse struct {
+	Attributes struct {
+		Message     string `json:"message"`
+		Priority    string `json:"priority"`
+		Service     string `json:"service"`
+		Source      string `json:"source"`
+		Status      string `json:"status"`
+		Type        string `json:"type"`
+		Environment string `json:"environment"`
+		Impact      bool   `json:"impact"`
+		StartDate   string `json:"start_date"`
+		EndDate     string `json:"end_date"`
+		Owner       string `json:"owner"`
+	} `json:"attributes"`
+	Links struct {
+		PullRequestLink string `json:"pull_request_link"`
+		Ticket          string `json:"ticket"`
+	} `json:"links"`
+	Metadata struct {
+		SlackId   string `json:"slack_id"`
+		createdAt string `json:"created_at"`
+		Duration  string `json:"duration"`
+		Id        string `json:"id"`
+	}
+	Title string `json:"title"`
+}
+
+type Response struct {
+	Event EventReponse `json:"event"`
+}
+
 var environment map[string]int = map[string]int{"PROD": 7, "PREP": 6, "UAT": 4}
 
 func postTrackerEvent(tracker tracker) {
 
 	var data Payload
 
-	data.Attributes.Message = tracker.Summary
+	data.Attributes.Message = tracker.Description
 	data.Attributes.Priority = 1
 	data.Attributes.Service = tracker.Project
 	data.Attributes.Source = "slack"
@@ -313,7 +374,6 @@ func postTrackerEvent(tracker tracker) {
 		fmt.Println(err)
 	}
 
-
 	body := bytes.NewReader(payloadBytes)
 
 	req, err := http.NewRequest("POST", os.Getenv("TRACKER_HOST")+"/api/v1alpha1/event", body)
@@ -333,7 +393,7 @@ func updateTrackerEvent(tracker tracker) {
 
 	var data Payload
 
-	data.Attributes.Message = tracker.Summary
+	data.Attributes.Message = tracker.Description
 	data.Attributes.Priority = 1
 	data.Attributes.Service = tracker.Project
 	data.Attributes.Source = "slack"
@@ -372,9 +432,7 @@ func updateTrackerEvent(tracker tracker) {
 	defer resp.Body.Close()
 }
 
-
-/*
-func getTrackerEvent(id string) Payload {
+func getTrackerEvent(id string) Response {
 
 	resp, err := http.Get(os.Getenv("TRACKER_HOST") + "/api/v1alpha1/event/" + id)
 	if err != nil {
@@ -387,11 +445,10 @@ func getTrackerEvent(id string) Payload {
 		log.Fatalf("Erreur lors de la lecture du corps : %s", err)
 	}
 
-	var data Payload
+	var data Response
 	err = json.Unmarshal(body, &data)
 	if err != nil {
 		log.Fatalf("Erreur lors de la lecture du corps : %s", err)
 	}
 	return data
 }
-*/
