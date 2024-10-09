@@ -33,7 +33,7 @@ type tracker struct {
 	PullRequest  string   `json:"pull_request"`
 	Description  string   `json:"description"`
 	Owner        string   `json:"owner"`
-	Stackholders []string `json:"stackholders"`
+	Stackholders []string `json:"stackHolders"`
 	EndDate      int64    `json:"end_date"`
 	ReleaseTeam  string   `json:"release_team"`
 	SlackId      string   `json:"slack_id"`
@@ -134,20 +134,17 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 		tracker.Owner = i.User.Name
 		tracker.ReleaseTeam = values["release"]["select_input-release"].SelectedOption.Value
 
-		fmt.Println("debug date",tracker.Datetime, tracker.EndDate )
-
 		api := slack.New(botToken)
 		var channelID string
 		var slackTimestamp string
 
-		blocks := blockMessage(tracker)
-
 		if i.View.CallbackID == "edit" {
 
-			//event := getTrackerEvent(messageTimestamp)
-			//tracker.Owner = event.Event.Attributes.Owner
+			event := getTrackerEvent(messageTimestamp)
+			tracker.Owner = event.Event.Attributes.Owner
 
-			
+			blocks := blockMessage(tracker)
+
 			channelID, slackTimestamp, _, err := api.UpdateMessage(messageChannel,
 				messageTimestamp,
 				slack.MsgOptionBlocks(blocks...),
@@ -169,7 +166,7 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 
 		} else {
 
-			//blocks := blockMessage(tracker)
+			blocks := blockMessage(tracker)
 
 			channelID, slackTimestamp, err = api.PostMessage(os.Getenv("TRACKER_SLACK_CHANNEL"),
 				slack.MsgOptionBlocks(blocks...),
@@ -277,17 +274,19 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 
 type Payload struct {
 	Attributes struct {
-		Message     string `json:"message"`
-		Priority    int    `json:"priority"`
-		Service     string `json:"service"`
-		Source      string `json:"source"`
-		Status      int    `json:"status"`
-		Type        int    `json:"type"`
-		Environment int    `json:"environment"`
-		Impact      bool   `json:"impact"`
-		StartDate   string `json:"start_date"`
-		EndDate     string `json:"end_date"`
-		Owner       string `json:"owner"`
+		Message      string   `json:"message"`
+		Priority     int      `json:"priority"`
+		Service      string   `json:"service"`
+		Source       string   `json:"source"`
+		Status       int      `json:"status"`
+		Type         int      `json:"type"`
+		Environment  int      `json:"environment"`
+		Impact       bool     `json:"impact"`
+		StartDate    string   `json:"start_date"`
+		EndDate      string   `json:"end_date"`
+		Owner        string   `json:"owner"`
+		StackHolders []string `json:"stackHolders"`
+		Notification bool   `json:"notification"`
 	} `json:"attributes"`
 	Links struct {
 		PullRequestLink string `json:"pull_request_link"`
@@ -299,17 +298,19 @@ type Payload struct {
 
 type EventReponse struct {
 	Attributes struct {
-		Message     string `json:"message"`
-		Priority    string `json:"priority"`
-		Service     string `json:"service"`
-		Source      string `json:"source"`
-		Status      string `json:"status"`
-		Type        string `json:"type"`
-		Environment string `json:"environment"`
-		Impact      bool   `json:"impact"`
-		StartDate   string `json:"startDate"`
-		EndDate     string `json:"endDate"`
-		Owner       string `json:"owner"`
+		Message      string   `json:"message"`
+		Priority     string   `json:"priority"`
+		Service      string   `json:"service"`
+		Source       string   `json:"source"`
+		Status       string   `json:"status"`
+		Type         string   `json:"type"`
+		Environment  string   `json:"environment"`
+		Impact       bool     `json:"impact"`
+		StartDate    string   `json:"startDate"`
+		EndDate      string   `json:"endDate"`
+		Owner        string   `json:"owner"`
+		StackHolders []string `json:"stackHolders"`
+		Notification bool   `json:"notification"`
 	} `json:"attributes"`
 	Links struct {
 		PullRequestLink string `json:"pullRequestLink"`
@@ -341,7 +342,11 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.Status = 1
 	data.Attributes.Type = 1
 	data.Attributes.Environment = environment[tracker.Environment]
-	data.Attributes.Impact = true
+	if tracker.Impact == "Yes" {
+		data.Attributes.Impact  = true
+	} else {
+		data.Attributes.Impact  = false
+	}
 	data.Attributes.StartDate = time.Unix(tracker.Datetime, 0).Format("2006-01-02T15:04:05Z")
 	if tracker.EndDate == 0 {
 		tracker.EndDate = tracker.Datetime + 3600
@@ -350,17 +355,23 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.Owner = tracker.Owner
 	data.Links.PullRequestLink = tracker.PullRequest
 	data.Links.Ticket = tracker.Ticket
-	/*
-	if IsValidURL(tracker.Ticket) && tracker.Ticket != "" {
+	data.Attributes.StackHolders = tracker.Stackholders
+	fmt.Println("StackHolders:", data.Attributes.StackHolders)
+	if tracker.ReleaseTeam == "Yes" {
+		data.Attributes.Notification  = true
+	} else {
+		data.Attributes.Notification  = false
+	}
+	if IsValidURL(tracker.Ticket) && tracker.Ticket == "" {
 		data.Links.PullRequestLink = tracker.PullRequest
 	} else {
 		fmt.Printf("Invalid PullRequest URL: %s\n", tracker.PullRequest)
 	}
-	if IsValidURL(tracker.Ticket) && tracker.Ticket != "" {
+	if IsValidURL(tracker.Ticket) && tracker.Ticket == "" {
 		data.Links.Ticket = tracker.Ticket
 	} else {
 		fmt.Printf("Invalid Ticket URL: %s\n", tracker.Ticket)
-	}*/
+	}
 	data.Title = tracker.Summary
 	data.SlackId = tracker.SlackId
 
@@ -395,26 +406,36 @@ func updateTrackerEvent(tracker tracker) {
 	data.Attributes.Status = 1
 	data.Attributes.Type = 1
 	data.Attributes.Environment = environment[tracker.Environment]
-	data.Attributes.Impact = true
+	if tracker.Impact == "Yes" {
+		data.Attributes.Impact  = true
+	} else {
+		data.Attributes.Impact  = false
+	}
 	data.Attributes.StartDate = time.Unix(tracker.Datetime, 0).Format("2006-01-02T15:04:05Z")
 	if tracker.EndDate == 0 {
 		tracker.EndDate = tracker.Datetime + 3600
 	}
 	data.Attributes.EndDate = time.Unix(tracker.EndDate, 0).Format("2006-01-02T15:04:05Z")
 	data.Attributes.Owner = tracker.Owner
-	if IsValidURL(tracker.Ticket) && tracker.Ticket != "" {
+	if IsValidURL(tracker.Ticket) && tracker.Ticket == "" {
 		data.Links.PullRequestLink = tracker.PullRequest
 	} else {
 		fmt.Printf("Invalid PullRequest URL: %s\n", tracker.PullRequest)
 	}
-	if IsValidURL(tracker.Ticket) && tracker.Ticket != "" {
+	if IsValidURL(tracker.Ticket) && tracker.Ticket == "" {
 		data.Links.Ticket = tracker.Ticket
 	} else {
 		fmt.Printf("Invalid Ticket URL: %s\n", tracker.Ticket)
 	}
 	data.Title = tracker.Summary
 	data.SlackId = tracker.SlackId
-
+	data.Attributes.StackHolders = tracker.Stackholders
+	if tracker.ReleaseTeam == "Yes" {
+		data.Attributes.Notification  = true
+	} else {
+		data.Attributes.Notification  = false
+	}
+	
 	payloadBytes, err := json.Marshal(data)
 	if err != nil {
 		fmt.Println(err)

@@ -16,7 +16,7 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 	ticket := inputUrl("ticket", "Link Ticket Issue", event.Links.Ticket, ":ticket:")
 	ticket.Optional = true
 
-	stackholders := inputMultiUser("stackholders", ":dart: Stackholders", []string{})
+	stackholders := inputMultiUser("stackholders", ":dart: Stackholders",  event.Attributes.StackHolders)
 	stackholders.Optional = true
 
 	changelog := inputText("changelog", "Description", event.Attributes.Message, "", true)
