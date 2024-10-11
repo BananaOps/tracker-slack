@@ -16,8 +16,8 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 	ticket := inputUrl("ticket", "Link Ticket Issue", event.Links.Ticket, ":ticket:")
 	ticket.Optional = true
 
-	stackholders := inputMultiUser("stackholders", ":dart: Stackholders",  event.Attributes.StackHolders)
-	stackholders.Optional = true
+	stakeholders := inputMultiUser("stakeholders", ":dart: Stakeholders", event.Attributes.StakeHolders)
+	stakeholders.Optional = true
 
 	changelog := inputText("changelog", "Description", event.Attributes.Message, "", true)
 	changelog.Optional = true
@@ -41,7 +41,7 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 				//inputAction(),
 				inputDatetime("datetime", "Start Date", event.Attributes.StartDate),
 				endDateTime,
-				stackholders,
+				stakeholders,
 				ticket,
 				pullRequest,
 				changelog,
@@ -56,8 +56,8 @@ func blockMessage(tracker tracker) []slack.Block {
 
 	var users []string
 
-	for i := range tracker.Stackholders {
-		user := fmt.Sprintf("<@%s>", tracker.Stackholders[i])
+	for i := range tracker.Stakeholders {
+		user := fmt.Sprintf("<@%s>", tracker.Stakeholders[i])
 		users = append(users, user)
 	}
 
@@ -83,9 +83,9 @@ func blockMessage(tracker tracker) []slack.Block {
 	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
 	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
 
-	var stackholder string
+	var stakeholder string
 	if len(users) > 0 {
-		stackholder = fmt.Sprintf(":dart: *Stackholder:* %s \n", strings.Join(users, ", "))
+		stakeholder = fmt.Sprintf(":dart: *Stakeholder:* %s \n", strings.Join(users, ", "))
 	}
 
 	var pullRequest string
@@ -99,9 +99,9 @@ func blockMessage(tracker tracker) []slack.Block {
 	}
 	var text string
 	if tracker.ReleaseTeam == "Yes" {
-		text = summary + project + date + environment + impact + owner + releaseTeam + stackholder + ticket + pullRequest + description
+		text = summary + project + date + environment + impact + owner + releaseTeam + stakeholder + ticket + pullRequest + description
 	} else {
-		text = summary + project + date + environment + impact + owner + stackholder + ticket + pullRequest + description
+		text = summary + project + date + environment + impact + owner + stakeholder + ticket + pullRequest + description
 	}
 
 	// Define the modal blocks
@@ -313,7 +313,7 @@ func inputAction() *slack.InputBlock {
 
 func inputDatetime(blockId string, blockText string, value string) *slack.InputBlock {
 	block := slack.NewDateTimePickerBlockElement("datetimepicker-action")
-	if value == ""  && blockId == "datetime" {
+	if value == "" && blockId == "datetime" {
 		block.InitialDateTime = time.Now().Unix()
 	} else if value == "" && blockId == "enddatetime" {
 		block.InitialDateTime = time.Now().Add(time.Hour * 1).Unix()
