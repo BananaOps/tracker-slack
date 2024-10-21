@@ -243,17 +243,23 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 	api := slack.New(botToken)
 
 	var message string
+	var reaction string
 	switch action {
 	case "in_progress":
 		message = fmt.Sprintf(":loading: In progress by <@%s>", user)
+		reaction = ":loading:"
 	case "pause":
 		message = fmt.Sprintf(":double_vertical_bar: Paused by <@%s>", user)
+		reaction = ":double_vertical_bar:"
 	case "cancelled":
 		message = fmt.Sprintf(":x: Cancelled by <@%s>", user)
+		reaction = ":x:"
 	case "post_poned":
 		message = fmt.Sprintf(":hourglass_flowing_sand: Postponed by <@%s>", user)
+		reaction = ":hourglass_flowing_sand:"
 	case "done":
 		message = fmt.Sprintf(":white_check_mark: Done by <@%s>", user)
+		reaction = ":white_check_mark:"
 	case "approved":
 		message = fmt.Sprintf(":ok: Approved by <@%s>", user)
 	case "rejected":
@@ -270,7 +276,51 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 	if err != nil {
 		fmt.Printf("Error posting message to thread: %v", err)
 	}
+
+	// Remove all reactions from the message
+	removeReaction(channelID, messageTs)
+
+	// Add reaction to the message
+	if reaction != "" {
+		err = api.AddReaction(reaction, slack.ItemRef{Channel: channelID, Timestamp: messageTs})
+		if err != nil {
+			fmt.Printf("Error adding reaction: %v", err)
+		}
+	}
 }
+
+func removeReaction(channelID string, messageTs string) {
+    api := slack.New(botToken)
+
+    // Récupérer le message
+    message, err := api.GetConversationHistory(&slack.GetConversationHistoryParameters{
+        ChannelID: channelID,
+        Inclusive: true,
+        Latest:    messageTs,
+        Limit:     1,
+    })
+    if err != nil {
+        log.Fatalf("Erreur lors de la récupération du message : %s", err)
+    }
+
+    if len(message.Messages) == 0 {
+        log.Fatalf("Aucun message trouvé avec le timestamp spécifié")
+    }
+
+    // Supprimer toutes les réactions
+    for _, reaction := range message.Messages[0].Reactions {
+        err := api.RemoveReaction(reaction.Name, slack.ItemRef{
+            Channel:   channelID,
+            Timestamp: messageTs,
+        })
+        if err != nil {
+            log.Printf("Erreur lors de la suppression de la réaction %s : %s", reaction.Name, err)
+        } else {
+            log.Printf("Réaction %s supprimée avec succès", reaction.Name)
+        }
+    }
+}
+
 
 type Payload struct {
 	Attributes struct {
