@@ -268,7 +268,15 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 		message = fmt.Sprintf(":pencil: Edited by <@%s>", user)
 	}
 
-	_, _, err := api.PostMessage(
+	//removeReaction(channelID, messageTs)
+	err := api.AddReaction(reaction, slack.ItemRef{Channel: channelID, Timestamp: messageTs})
+	if err != nil {
+		fmt.Printf("Error adding reaction: %v", err)
+	} else {
+		log.Println("Réaction ajoutée avec succès")
+	}
+
+	_, _, err = api.PostMessage(
 		channelID,
 		slack.MsgOptionText(message, false),
 		slack.MsgOptionTS(messageTs),
@@ -277,50 +285,39 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 		fmt.Printf("Error posting message to thread: %v", err)
 	}
 
-	// Remove all reactions from the message
-	removeReaction(channelID, messageTs)
-
-	// Add reaction to the message
-	if reaction != "" {
-		err = api.AddReaction(reaction, slack.ItemRef{Channel: channelID, Timestamp: messageTs})
-		if err != nil {
-			fmt.Printf("Error adding reaction: %v", err)
-		}
-	}
 }
 
 func removeReaction(channelID string, messageTs string) {
-    api := slack.New(botToken)
+	api := slack.New(botToken)
 
-    // Récupérer le message
-    message, err := api.GetConversationHistory(&slack.GetConversationHistoryParameters{
-        ChannelID: channelID,
-        Inclusive: true,
-        Latest:    messageTs,
-        Limit:     1,
-    })
-    if err != nil {
-        log.Fatalf("Erreur lors de la récupération du message : %s", err)
-    }
+	// Récupérer le message
+	message, err := api.GetConversationHistory(&slack.GetConversationHistoryParameters{
+		ChannelID: channelID,
+		Inclusive: true,
+		Latest:    messageTs,
+		Limit:     1,
+	})
+	if err != nil {
+		log.Fatalf("Erreur lors de la récupération du message : %s", err)
+	}
 
-    if len(message.Messages) == 0 {
-        log.Fatalf("Aucun message trouvé avec le timestamp spécifié")
-    }
+	if len(message.Messages) == 0 {
+		log.Fatalf("Aucun message trouvé avec le timestamp spécifié")
+	}
 
-    // Supprimer toutes les réactions
-    for _, reaction := range message.Messages[0].Reactions {
-        err := api.RemoveReaction(reaction.Name, slack.ItemRef{
-            Channel:   channelID,
-            Timestamp: messageTs,
-        })
-        if err != nil {
-            log.Printf("Erreur lors de la suppression de la réaction %s : %s", reaction.Name, err)
-        } else {
-            log.Printf("Réaction %s supprimée avec succès", reaction.Name)
-        }
-    }
+	// Supprimer toutes les réactions
+	for _, reaction := range message.Messages[0].Reactions {
+		err := api.RemoveReaction(reaction.Name, slack.ItemRef{
+			Channel:   channelID,
+			Timestamp: messageTs,
+		})
+		if err != nil {
+			log.Printf("Erreur lors de la suppression de la réaction %s : %s", reaction.Name, err)
+		} else {
+			log.Printf("Réaction %s supprimée avec succès", reaction.Name)
+		}
+	}
 }
-
 
 type Payload struct {
 	Attributes struct {
@@ -336,7 +333,7 @@ type Payload struct {
 		EndDate      string   `json:"end_date"`
 		Owner        string   `json:"owner"`
 		StackHolders []string `json:"stackHolders"`
-		Notification bool   `json:"notification"`
+		Notification bool     `json:"notification"`
 	} `json:"attributes"`
 	Links struct {
 		PullRequestLink string `json:"pull_request_link"`
@@ -360,7 +357,7 @@ type EventReponse struct {
 		EndDate      string   `json:"endDate"`
 		Owner        string   `json:"owner"`
 		StackHolders []string `json:"stackHolders"`
-		Notification bool   `json:"notification"`
+		Notification bool     `json:"notification"`
 	} `json:"attributes"`
 	Links struct {
 		PullRequestLink string `json:"pullRequestLink"`
@@ -393,9 +390,9 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.Type = 1
 	data.Attributes.Environment = environment[tracker.Environment]
 	if tracker.Impact == "Yes" {
-		data.Attributes.Impact  = true
+		data.Attributes.Impact = true
 	} else {
-		data.Attributes.Impact  = false
+		data.Attributes.Impact = false
 	}
 	data.Attributes.StartDate = time.Unix(tracker.Datetime, 0).Format("2006-01-02T15:04:05Z")
 	if tracker.EndDate == 0 {
@@ -408,9 +405,9 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.StackHolders = tracker.Stackholders
 	fmt.Println("StackHolders:", data.Attributes.StackHolders)
 	if tracker.ReleaseTeam == "Yes" {
-		data.Attributes.Notification  = true
+		data.Attributes.Notification = true
 	} else {
-		data.Attributes.Notification  = false
+		data.Attributes.Notification = false
 	}
 	if IsValidURL(tracker.Ticket) && tracker.Ticket == "" {
 		data.Links.PullRequestLink = tracker.PullRequest
@@ -457,9 +454,9 @@ func updateTrackerEvent(tracker tracker) {
 	data.Attributes.Type = 1
 	data.Attributes.Environment = environment[tracker.Environment]
 	if tracker.Impact == "Yes" {
-		data.Attributes.Impact  = true
+		data.Attributes.Impact = true
 	} else {
-		data.Attributes.Impact  = false
+		data.Attributes.Impact = false
 	}
 	data.Attributes.StartDate = time.Unix(tracker.Datetime, 0).Format("2006-01-02T15:04:05Z")
 	if tracker.EndDate == 0 {
@@ -481,11 +478,11 @@ func updateTrackerEvent(tracker tracker) {
 	data.SlackId = tracker.SlackId
 	data.Attributes.StackHolders = tracker.Stackholders
 	if tracker.ReleaseTeam == "Yes" {
-		data.Attributes.Notification  = true
+		data.Attributes.Notification = true
 	} else {
-		data.Attributes.Notification  = false
+		data.Attributes.Notification = false
 	}
-	
+
 	payloadBytes, err := json.Marshal(data)
 	if err != nil {
 		fmt.Println(err)
