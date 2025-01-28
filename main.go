@@ -24,7 +24,7 @@ func run() (err error) {
 	c := cron.New()
 
 	// Ajouter une tâche pour 8h00 chaque jour
-	_, err = c.AddFunc("* * * * *", listEventToday)
+	_, err = c.AddFunc("0 8 * * *", listEventToday)
 	if err != nil {
 		log.Fatalf("Erreur lors de l'ajout de la tâche planifiée : %v", err)
 	}
