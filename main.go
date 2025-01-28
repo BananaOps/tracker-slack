@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/signal"
 	"time"
+
+	"github.com/robfig/cron/v3"
 )
 
 func main() {
@@ -18,6 +20,19 @@ func main() {
 }
 
 func run() (err error) {
+
+	c := cron.New()
+
+	// Ajouter une tâche pour 8h00 chaque jour
+	_, err = c.AddFunc("* * * * *", listEventToday)
+	if err != nil {
+		log.Fatalf("Erreur lors de l'ajout de la tâche planifiée : %v", err)
+	}
+
+	// Démarrer le planificateur
+	c.Start()
+	log.Println("Planificateur démarré")
+
 	// Handle SIGINT (CTRL+C) gracefully.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
