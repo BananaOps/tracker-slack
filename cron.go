@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/slack-go/slack"
 )
@@ -20,18 +22,20 @@ type TodayEventReponse struct {
 		Type         string   `json:"type"`
 		Environment  string   `json:"environment"`
 		Impact       bool     `json:"impact"`
-		StartDate    string   `json:"start_date"`
-		EndDate      string   `json:"end_date"`
+		StartDate    string   `json:"startDate"`
+		EndDate      string   `json:"endDate"`
 		Owner        string   `json:"owner"`
 		StackHolders []string `json:"stackHolders"`
 		Notification bool     `json:"notification"`
 	} `json:"attributes"`
 	Links struct {
-		PullRequestLink string `json:"pull_request_link"`
+		PullRequestLink string `json:"pullRequestLink"`
 		Ticket          string `json:"ticket"`
 	} `json:"links"`
-	Title   string `json:"title"`
-	SlackId string `json:"slack_id"`
+	Metadata struct {
+		SlackId string `json:"slackId"`
+	} `json:"metadata"`
+	Title string `json:"title"`
 }
 
 type TodayReponse struct {
@@ -53,6 +57,8 @@ func listEventToday() {
 	channelID, slackTimestamp, err := api.PostMessage(
 		os.Getenv("TRACKER_SLACK_CHANNEL"),
 		slack.MsgOptionText(message, false),
+		slack.MsgOptionAsUser(true),        // false = Active Markdown (mrkdwn)
+		slack.MsgOptionDisableLinkUnfurl(), // Désactive la preview des liens
 	)
 	if err != nil {
 		fmt.Printf("Error posting message to thread: %v", err)
@@ -90,7 +96,7 @@ func fetchEvents() ([]TodayEventReponse, error) {
 // formatSlackMessageByEnvironment génère un texte groupé par environnement
 func formatSlackMessageByEnvironment(events []TodayEventReponse) string {
 	if len(events) == 0 {
-		return "No Tracker events today :rocket:"
+		return ":calendar: No Tracker events today :rocket:"
 	}
 
 	// Regrouper les événements par environnement et service
@@ -103,14 +109,23 @@ func formatSlackMessageByEnvironment(events []TodayEventReponse) string {
 	}
 
 	// Construire le message Slack
-	message := ":rocket: *Today Tracker Events :*\n"
+	message := ":calendar: *Today Tracker Events :*\n"
 	for env, services := range groupedEvents {
-		emoji := getEnvironmentEmoji(env)
-		message += fmt.Sprintf("\n*Environment : %s %s*\n", emoji, env)
+		emoji, envMessage := getEnvironmentEmoji(env)
+		message += fmt.Sprintf("\n*%s %s*\n", emoji, envMessage)
 		for service, serviceEvents := range services {
 			message += fmt.Sprintf("  *%s:*\n", service)
 			for _, event := range serviceEvents {
-				message += fmt.Sprintf("    - %s: *%s*\n", event.Title, event.Attributes.Owner)
+				t, err := time.Parse(time.RFC3339, event.Attributes.StartDate)
+				if err != nil {
+					fmt.Println("Parsing Error :", err)
+				}
+				workspace := os.Getenv("TRACKER_SLACK_WORKSPACE")
+				channelID := os.Getenv("TRACKER_SLACK_CHANNEL")
+				messageURL := fmt.Sprintf("https://%s.slack.com/archives/%s/p%s",
+					workspace, channelID, strings.ReplaceAll(event.Metadata.SlackId, ".", ""))
+
+				message += fmt.Sprintf("    -  %02d:%02d - %s <%s|Thread>\n", t.Hour(), t.Minute(), event.Title, messageURL)
 			}
 		}
 	}
@@ -119,15 +134,15 @@ func formatSlackMessageByEnvironment(events []TodayEventReponse) string {
 }
 
 // getEnvironmentEmoji retourne l'émoji correspondant à un environnement
-func getEnvironmentEmoji(environment string) string {
+func getEnvironmentEmoji(environment string) (string, string) {
 	switch environment {
 	case "production":
-		return ":prod:"
+		return ":prod:", "PROD"
 	case "preproduction":
-		return ":prep:"
-	case "uat":
-		return ":uat:"
+		return ":prep:", "PREPROD"
+	case "UAT":
+		return ":uat:", "UAT"
 	default:
-		return ":question:"
+		return ":question:", "UNKOWN"
 	}
 }

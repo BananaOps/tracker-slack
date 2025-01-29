@@ -16,7 +16,7 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 	ticket := inputUrl("ticket", "Link Ticket Issue", event.Links.Ticket, ":ticket:")
 	ticket.Optional = true
 
-	stackholders := inputMultiUser("stackholders", ":dart: Stackholders",  event.Attributes.StackHolders)
+	stackholders := inputMultiUser("stackholders", ":dart: Stackholders", event.Attributes.StackHolders)
 	stackholders.Optional = true
 
 	changelog := inputText("changelog", "Description", event.Attributes.Message, "", true)
@@ -313,7 +313,7 @@ func inputAction() *slack.InputBlock {
 
 func inputDatetime(blockId string, blockText string, value string) *slack.InputBlock {
 	block := slack.NewDateTimePickerBlockElement("datetimepicker-action")
-	if value == ""  && blockId == "datetime" {
+	if value == "" && blockId == "datetime" {
 		block.InitialDateTime = time.Now().Unix()
 	} else if value == "" && blockId == "enddatetime" {
 		block.InitialDateTime = time.Now().Add(time.Hour * 1).Unix()

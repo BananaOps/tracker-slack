@@ -23,15 +23,15 @@ func run() (err error) {
 
 	c := cron.New()
 
-	// Ajouter une tâche pour 8h00 chaque jour
-	_, err = c.AddFunc("0 8 * * *", listEventToday)
+	// Ajouter une tâche
+	_, err = c.AddFunc(os.Getenv("TRACKER_SLACK_CRON_MESSAGE"), listEventToday)
 	if err != nil {
-		log.Fatalf("Erreur lors de l'ajout de la tâche planifiée : %v", err)
+		log.Fatalf("Error adding scheduled task : %v", err)
 	}
 
 	// Démarrer le planificateur
 	c.Start()
-	log.Println("Planificateur démarré")
+	log.Println("task planner started")
 
 	// Handle SIGINT (CTRL+C) gracefully.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
