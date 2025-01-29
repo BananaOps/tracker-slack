@@ -43,6 +43,9 @@ type TodayReponse struct {
 	TotalCount int                 `json:"totalcount"`
 }
 
+var channel string = os.Getenv("TRACKER_SLACK_CHANNEL")
+var workspace string = os.Getenv("TRACKER_SLACK_WORKSPACE")
+
 func listEventToday() {
 	api := slack.New(botToken)
 
@@ -96,7 +99,7 @@ func fetchEvents() ([]TodayEventReponse, error) {
 // formatSlackMessageByEnvironment génère un texte groupé par environnement
 func formatSlackMessageByEnvironment(events []TodayEventReponse) string {
 	if len(events) == 0 {
-		return ":calendar: No Tracker events today :rocket:"
+		return ":calendar: No Tracker Events Today :rocket:"
 	}
 
 	// Regrouper les événements par environnement et service
@@ -120,12 +123,10 @@ func formatSlackMessageByEnvironment(events []TodayEventReponse) string {
 				if err != nil {
 					fmt.Println("Parsing Error :", err)
 				}
-				workspace := os.Getenv("TRACKER_SLACK_WORKSPACE")
-				channelID := os.Getenv("TRACKER_SLACK_CHANNEL")
 				messageURL := fmt.Sprintf("https://%s.slack.com/archives/%s/p%s",
-					workspace, channelID, strings.ReplaceAll(event.Metadata.SlackId, ".", ""))
+					workspace, channel, strings.ReplaceAll(event.Metadata.SlackId, ".", ""))
 
-				message += fmt.Sprintf("    -  %02d:%02d - %s <%s|Thread>\n", t.Hour(), t.Minute(), event.Title, messageURL)
+				message += fmt.Sprintf("    -  %02d:%02d - %s <%s|thread>\n", t.Hour(), t.Minute(), event.Title, messageURL)
 			}
 		}
 	}
