@@ -286,7 +286,7 @@ type Payload struct {
 		EndDate      string   `json:"end_date"`
 		Owner        string   `json:"owner"`
 		StackHolders []string `json:"stackHolders"`
-		Notification bool   `json:"notification"`
+		Notification bool     `json:"notification"`
 	} `json:"attributes"`
 	Links struct {
 		PullRequestLink string `json:"pull_request_link"`
@@ -310,7 +310,7 @@ type EventReponse struct {
 		EndDate      string   `json:"endDate"`
 		Owner        string   `json:"owner"`
 		StackHolders []string `json:"stackHolders"`
-		Notification bool   `json:"notification"`
+		Notification bool     `json:"notification"`
 	} `json:"attributes"`
 	Links struct {
 		PullRequestLink string `json:"pullRequestLink"`
@@ -343,9 +343,9 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.Type = 1
 	data.Attributes.Environment = environment[tracker.Environment]
 	if tracker.Impact == "Yes" {
-		data.Attributes.Impact  = true
+		data.Attributes.Impact = true
 	} else {
-		data.Attributes.Impact  = false
+		data.Attributes.Impact = false
 	}
 	data.Attributes.StartDate = time.Unix(tracker.Datetime, 0).Format("2006-01-02T15:04:05Z")
 	if tracker.EndDate == 0 {
@@ -358,9 +358,9 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.StackHolders = tracker.Stackholders
 	fmt.Println("StackHolders:", data.Attributes.StackHolders)
 	if tracker.ReleaseTeam == "Yes" {
-		data.Attributes.Notification  = true
+		data.Attributes.Notification = true
 	} else {
-		data.Attributes.Notification  = false
+		data.Attributes.Notification = false
 	}
 	if IsValidURL(tracker.Ticket) && tracker.Ticket == "" {
 		data.Links.PullRequestLink = tracker.PullRequest
@@ -407,9 +407,9 @@ func updateTrackerEvent(tracker tracker) {
 	data.Attributes.Type = 1
 	data.Attributes.Environment = environment[tracker.Environment]
 	if tracker.Impact == "Yes" {
-		data.Attributes.Impact  = true
+		data.Attributes.Impact = true
 	} else {
-		data.Attributes.Impact  = false
+		data.Attributes.Impact = false
 	}
 	data.Attributes.StartDate = time.Unix(tracker.Datetime, 0).Format("2006-01-02T15:04:05Z")
 	if tracker.EndDate == 0 {
@@ -431,11 +431,11 @@ func updateTrackerEvent(tracker tracker) {
 	data.SlackId = tracker.SlackId
 	data.Attributes.StackHolders = tracker.Stackholders
 	if tracker.ReleaseTeam == "Yes" {
-		data.Attributes.Notification  = true
+		data.Attributes.Notification = true
 	} else {
-		data.Attributes.Notification  = false
+		data.Attributes.Notification = false
 	}
-	
+
 	payloadBytes, err := json.Marshal(data)
 	if err != nil {
 		fmt.Println(err)

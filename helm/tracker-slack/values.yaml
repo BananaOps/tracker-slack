@@ -7,6 +7,8 @@ env:
   tracker:
     host: "tracker.local"
     slack: tracker
+    slack_workspace: "workfspace"
+    cron_message: "30 7 * * *"
 
 secret: 
   create: true

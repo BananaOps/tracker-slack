@@ -52,6 +52,10 @@ spec:
               value: {{ .Values.env.tracker.slack | quote }}
             - name: TRACKER_HOST
               value: {{ .Values.env.tracker.host | quote }}
+            - name: TRACKER_SLACK_CRON_MESSAGE
+              value: {{ .Values.env.tracker.cron_message | quote }}
+            - name: TRACKER_SLACK_WORKSPACE
+              value: {{ .Values.env.tracker.slack_workspace | quote }}
             - name: SLACK_VERIFICATION_TOKEN
               valueFrom:
                 secretKeyRef:

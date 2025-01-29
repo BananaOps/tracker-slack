@@ -16,7 +16,7 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 	ticket := inputUrl("ticket", "Link Ticket Issue", event.Links.Ticket, ":ticket:")
 	ticket.Optional = true
 
-	stackholders := inputMultiUser("stackholders", ":dart: Stackholders",  event.Attributes.StackHolders)
+	stackholders := inputMultiUser("stackholders", ":dart: Stackholders", event.Attributes.StackHolders)
 	stackholders.Optional = true
 
 	changelog := inputText("changelog", "Description", event.Attributes.Message, "", true)
@@ -197,24 +197,6 @@ func inputText(blockId string, blockText string, value string, emoji string, mul
 	)
 }
 
-/*
-func inputPriority() *slack.InputBlock {
-	return slack.NewInputBlock(
-		"priority",
-		slack.NewTextBlockObject("plain_text", "Priority", true, false),
-		nil,
-		slack.NewOptionsSelectBlockElement(
-			slack.OptTypeStatic,
-			slack.NewTextBlockObject("plain_text", "Select priority", true, false),
-			"select_input-priority",
-			slack.NewOptionBlockObject("P1", slack.NewTextBlockObject("plain_text", ":priority-highest: P1", true, false), nil),
-			slack.NewOptionBlockObject("P2", slack.NewTextBlockObject("plain_text", ":priority-high: P2", true, false), nil),
-			slack.NewOptionBlockObject("P3", slack.NewTextBlockObject("plain_text", ":priority-medium: P3", true, false), nil),
-			slack.NewOptionBlockObject("P4", slack.NewTextBlockObject("plain_text", ":priority-low: P4", true, false), nil),
-		),
-	)
-}*/
-
 func inputImpact(value bool) *slack.InputBlock {
 
 	block := slack.NewOptionsSelectBlockElement(
@@ -291,29 +273,9 @@ func inputEnv(value string) *slack.InputBlock {
 	)
 }
 
-// Not used for the moment
-/*
-func inputAction() *slack.InputBlock {
-	return slack.NewInputBlock(
-		"action",
-		slack.NewTextBlockObject("plain_text", ":hammer: Action", true, false),
-		nil,
-		slack.NewOptionsSelectBlockElement(
-			slack.OptTypeStatic,
-			slack.NewTextBlockObject("plain_text", "Select action", true, false),
-			"select_input-action",
-			slack.NewOptionBlockObject("Deployment", slack.NewTextBlockObject("plain_text", "Deployment", true, false), nil),
-			slack.NewOptionBlockObject("HotFix", slack.NewTextBlockObject("plain_text", "HotFix", true, false), nil),
-			slack.NewOptionBlockObject("Operation", slack.NewTextBlockObject("plain_text", "Operation", true, false), nil),
-			slack.NewOptionBlockObject("Maintenance", slack.NewTextBlockObject("plain_text", "Maintenance", true, false), nil),
-		),
-	)
-}
-*/
-
 func inputDatetime(blockId string, blockText string, value string) *slack.InputBlock {
 	block := slack.NewDateTimePickerBlockElement("datetimepicker-action")
-	if value == ""  && blockId == "datetime" {
+	if value == "" && blockId == "datetime" {
 		block.InitialDateTime = time.Now().Unix()
 	} else if value == "" && blockId == "enddatetime" {
 		block.InitialDateTime = time.Now().Add(time.Hour * 1).Unix()
@@ -329,7 +291,7 @@ func inputDatetime(blockId string, blockText string, value string) *slack.InputB
 
 		eventDatetime := timestamp
 		if err != nil {
-			fmt.Println(err, "\n")
+			fmt.Println(err)
 		}
 		block.InitialDateTime = eventDatetime
 	}
@@ -338,20 +300,5 @@ func inputDatetime(blockId string, blockText string, value string) *slack.InputB
 		slack.NewTextBlockObject("plain_text", fmt.Sprintf(":date: %s", blockText), false, false),
 		nil,
 		block,
-	)
-}
-
-func inputStatus() *slack.ActionBlock {
-	return slack.NewActionBlock(
-		"status",
-		slack.NewOptionsSelectBlockElement(
-			slack.OptTypeStatic,
-			slack.NewTextBlockObject("plain_text", "Select status", true, false),
-			"select_action-priority",
-			slack.NewOptionBlockObject("start", slack.NewTextBlockObject("start", ":start-button: start", true, false), nil),
-			slack.NewOptionBlockObject("pause", slack.NewTextBlockObject("plain_text", ":double_vertical_bar: Pause", true, false), nil),
-			slack.NewOptionBlockObject("cancelled", slack.NewTextBlockObject("plain_text", ":x: Cancelled", true, false), nil),
-			slack.NewOptionBlockObject("done", slack.NewTextBlockObject("plain_text", ":white_check_mark: Done", true, false), nil),
-		),
 	)
 }
