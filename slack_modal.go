@@ -197,24 +197,6 @@ func inputText(blockId string, blockText string, value string, emoji string, mul
 	)
 }
 
-/*
-func inputPriority() *slack.InputBlock {
-	return slack.NewInputBlock(
-		"priority",
-		slack.NewTextBlockObject("plain_text", "Priority", true, false),
-		nil,
-		slack.NewOptionsSelectBlockElement(
-			slack.OptTypeStatic,
-			slack.NewTextBlockObject("plain_text", "Select priority", true, false),
-			"select_input-priority",
-			slack.NewOptionBlockObject("P1", slack.NewTextBlockObject("plain_text", ":priority-highest: P1", true, false), nil),
-			slack.NewOptionBlockObject("P2", slack.NewTextBlockObject("plain_text", ":priority-high: P2", true, false), nil),
-			slack.NewOptionBlockObject("P3", slack.NewTextBlockObject("plain_text", ":priority-medium: P3", true, false), nil),
-			slack.NewOptionBlockObject("P4", slack.NewTextBlockObject("plain_text", ":priority-low: P4", true, false), nil),
-		),
-	)
-}*/
-
 func inputImpact(value bool) *slack.InputBlock {
 
 	block := slack.NewOptionsSelectBlockElement(
