@@ -2,6 +2,17 @@ apiVersion: v1
 entries:
   tracker-slack:
   - apiVersion: v2
+    appVersion: 0.2.1
+    created: "2025-01-31T08:16:41.694126871Z"
+    description: A Helm chart dedicated to deploy tracker slack app an open source
+      solution
+    digest: 3358d5a39ba303e4e0921cfa9d0c053b733a9145b359bc58829e8269715df8bc
+    name: tracker-slack
+    type: application
+    urls:
+    - https://github.com/BananaOps/tracker-slack/releases/download/tracker-slack-0.2.1/tracker-slack-0.2.1.tgz
+    version: 0.2.1
+  - apiVersion: v2
     appVersion: 0.2.0
     created: "2025-01-29T10:36:13.189310902Z"
     description: A Helm chart dedicated to deploy tracker slack app an open source
@@ -45,4 +56,4 @@ entries:
     urls:
     - https://github.com/BananaOps/tracker-slack/releases/download/tracker-slack-0.1.4/tracker-slack-0.1.4.tgz
     version: 0.1.4
-generated: "2025-01-29T10:36:13.189326471Z"
+generated: "2025-01-31T08:16:41.694145596Z"
