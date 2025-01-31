@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -67,12 +68,12 @@ func blockMessage(tracker tracker) []slack.Block {
 
 	//To convert print datetime in location
 	t := time.Unix(tracker.Datetime, 0).UTC()
-	location, err := time.LoadLocation("Europe/Paris")
+	location, err := time.LoadLocation(os.Getenv("TRACKER_TIMEZONE"))
 	if err != nil {
 		fmt.Println(err)
 	}
 	timeInUTCLocation := t.In(location)
-	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04") 
+	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
 
 	summary := fmt.Sprintf("*%s* \n \n", tracker.Summary)
 	project := fmt.Sprintf(":rocket: *Project:* %s \n", tracker.Project)
