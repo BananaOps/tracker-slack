@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -119,19 +120,55 @@ func formatSlackMessageByEnvironment(events []TodayEventReponse) string {
 		for service, serviceEvents := range services {
 			message += fmt.Sprintf("  *%s:*\n", service)
 			for _, event := range serviceEvents {
-				t, err := time.Parse(time.RFC3339, event.Attributes.StartDate)
+				time, err := convertTimeLocation(event.Attributes.StartDate)
 				if err != nil {
-					fmt.Println("Parsing Error :", err)
-				}
-				messageURL := fmt.Sprintf("https://%s.slack.com/archives/%s/p%s",
-					workspace, channel, strings.ReplaceAll(event.Metadata.SlackId, ".", ""))
+					fmt.Printf("Error to convert time with location: %v\n", err)
+					continue
 
-				message += fmt.Sprintf("    -  %02d:%02d - %s <%s|thread>\n", t.Hour(), t.Minute(), event.Title, messageURL)
+				}
+				messageURL := createSlackMessageURL(workspace, channel, event.Metadata.SlackId)
+
+				message += fmt.Sprintf("    -  %s - %s <%s|thread>\n", time, event.Title, messageURL)
 			}
 		}
 	}
 
 	return message
+}
+
+func convertTimeLocation(StartDate string) (string, error) {
+
+	t, err := time.Parse(time.RFC3339, StartDate)
+	if err != nil {
+		return "", err
+	}
+	//To convert print datetime in location
+	location, err := time.LoadLocation(os.Getenv("TRACKER_TIMEZONE"))
+	if err != nil {
+		return "", err
+	}
+	timeInUTCLocation := t.In(location)
+	formattedTime := timeInUTCLocation.Format("15:04")
+
+	return fmt.Sprintf("%s %s", formattedTime, location.String()), nil
+}
+
+// isValidSlackTimestamp vérifie si le slackId est un timestamp Slack valide
+func isValidSlackTimestamp(slackId string) bool {
+	if slackId == "" {
+		return false
+	}
+	// Vérifie si le slackId correspond au format d'un timestamp Slack
+	match, _ := regexp.MatchString(`^\d+\.\d+$`, slackId)
+	return match
+}
+
+// createSlackMessageURL crée l'URL du message Slack si le slackId est valide
+func createSlackMessageURL(teamDomain, channelId, slackId string) string {
+	if !isValidSlackTimestamp(slackId) {
+		return ""
+	}
+	return fmt.Sprintf("https://%s.slack.com/archives/%s/p%s", teamDomain, channelId, strings.ReplaceAll(slackId, ".", ""))
 }
 
 // getEnvironmentEmoji retourne l'émoji correspondant à un environnement

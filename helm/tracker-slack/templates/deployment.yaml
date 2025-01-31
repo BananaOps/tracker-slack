@@ -48,6 +48,8 @@ spec:
           #    path: /status
           #    port: metrics
           env:
+            - name: TRACKER_TIMEZONE
+              value: {{ .Values.env.timezone | quote }}
             - name: TRACKER_SLACK_CHANNEL
               value: {{ .Values.env.tracker.slack | quote }}
             - name: TRACKER_HOST
