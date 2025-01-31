@@ -72,14 +72,14 @@ func blockMessage(tracker tracker) []slack.Block {
 		fmt.Println(err)
 	}
 	timeInUTCLocation := t.In(location)
-	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
+	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04") 
 
 	summary := fmt.Sprintf("*%s* \n \n", tracker.Summary)
 	project := fmt.Sprintf(":rocket: *Project:* %s \n", tracker.Project)
 	date := fmt.Sprintf(":date: *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
 	impact := fmt.Sprintf(":boom: *Impact:* %s \n", tracker.Impact)
-	releaseTeam := fmt.Sprint(":slack_notification: *Notification Release Team:* @release-team \n")
+	releaseTeam := ":slack_notification: *Notification Release Team:* @release-team \n"
 	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
 	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
 
