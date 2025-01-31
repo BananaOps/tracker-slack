@@ -158,6 +158,9 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 				slack.MsgOptionText(fmt.Sprintf(":pencil: Edited by <@%s>", i.User.ID), false),
 				slack.MsgOptionTS(messageTimestamp),
 			)
+			if err != nil {
+				fmt.Printf("Error posting message to thread: %v", err)
+			}
 			fmt.Printf("Message successfully updated to channel %s at %s \n", channelID, slackTimestamp)
 
 			// Post tracker event
@@ -317,10 +320,9 @@ type EventReponse struct {
 		Ticket          string `json:"ticket"`
 	} `json:"links"`
 	Metadata struct {
-		SlackId   string `json:"slackId"`
-		createdAt string `json:"createdAt"`
-		Duration  string `json:"duration"`
-		Id        string `json:"id"`
+		SlackId  string `json:"slackId"`
+		Duration string `json:"duration"`
+		Id       string `json:"id"`
 	}
 	Title string `json:"title"`
 }
