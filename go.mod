@@ -13,5 +13,5 @@ require (
 
 require (
 	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/slack-go/slack v0.15.0
+	github.com/slack-go/slack v0.16.0
 )
