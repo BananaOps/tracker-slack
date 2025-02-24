@@ -263,8 +263,8 @@ func inputEnv(value string) *slack.InputBlock {
 		block.InitialOption = slack.NewOptionBlockObject("PREP", slack.NewTextBlockObject("plain_text", "PREP", true, false), nil)
 	} else if value == "UAT" {
 		block.InitialOption = slack.NewOptionBlockObject("UAT", slack.NewTextBlockObject("plain_text", "UAT", true, false), nil)
-		} else if value == "development" {
-			block.InitialOption = slack.NewOptionBlockObject("DEV", slack.NewTextBlockObject("plain_text", "DEV", true, false), nil)
+	} else if value == "development" {
+		block.InitialOption = slack.NewOptionBlockObject("DEV", slack.NewTextBlockObject("plain_text", "DEV", true, false), nil)
 	} else {
 		block.InitialOption = slack.NewOptionBlockObject("PROD", slack.NewTextBlockObject("plain_text", "PROD", true, false), nil)
 	}
