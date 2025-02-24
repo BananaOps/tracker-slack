@@ -180,6 +180,8 @@ func getEnvironmentEmoji(environment string) (string, string) {
 		return ":prep:", "PREPROD"
 	case "UAT":
 		return ":uat:", "UAT"
+	case "development":
+		return ":dev:", "DEV"
 	default:
 		return ":question:", "UNKOWN"
 	}

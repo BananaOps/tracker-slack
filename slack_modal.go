@@ -64,7 +64,7 @@ func blockMessage(tracker tracker) []slack.Block {
 
 	//var priorityEmoji map[string]string = map[string]string{"P1": ":priority-highest:", "P2": ":priority-high:", "P3": ":priority-medium:", "P4": ":priority-low:"}
 
-	var priorityEnv map[string]string = map[string]string{"PROD": ":prod:", "PREP": ":prep:", "UAT": ":uat:"}
+	var priorityEnv map[string]string = map[string]string{"PROD": ":prod:", "PREP": ":prep:", "UAT": ":uat:", "DEV": ":development:"}
 
 	//To convert print datetime in location
 	t := time.Unix(tracker.Datetime, 0).UTC()
@@ -254,6 +254,7 @@ func inputEnv(value string) *slack.InputBlock {
 		slack.NewOptionBlockObject("PROD", slack.NewTextBlockObject("plain_text", "PROD", true, false), nil),
 		slack.NewOptionBlockObject("PREP", slack.NewTextBlockObject("plain_text", "PREP", true, false), nil),
 		slack.NewOptionBlockObject("UAT", slack.NewTextBlockObject("plain_text", "UAT", true, false), nil),
+		slack.NewOptionBlockObject("DEV", slack.NewTextBlockObject("plain_text", "DEV", true, false), nil),
 	)
 
 	if value == "production" {
@@ -262,6 +263,8 @@ func inputEnv(value string) *slack.InputBlock {
 		block.InitialOption = slack.NewOptionBlockObject("PREP", slack.NewTextBlockObject("plain_text", "PREP", true, false), nil)
 	} else if value == "UAT" {
 		block.InitialOption = slack.NewOptionBlockObject("UAT", slack.NewTextBlockObject("plain_text", "UAT", true, false), nil)
+		} else if value == "development" {
+			block.InitialOption = slack.NewOptionBlockObject("DEV", slack.NewTextBlockObject("plain_text", "DEV", true, false), nil)
 	} else {
 		block.InitialOption = slack.NewOptionBlockObject("PROD", slack.NewTextBlockObject("plain_text", "PROD", true, false), nil)
 	}

@@ -331,7 +331,7 @@ type Response struct {
 	Event EventReponse `json:"event"`
 }
 
-var environment map[string]int = map[string]int{"PROD": 7, "PREP": 6, "UAT": 4}
+var environment map[string]int = map[string]int{"PROD": 7, "PREP": 6, "UAT": 4, "DEV": 1}
 
 func postTrackerEvent(tracker tracker) {
 
