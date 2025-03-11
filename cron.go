@@ -15,19 +15,20 @@ import (
 
 type TodayEventReponse struct {
 	Attributes struct {
-		Message      string   `json:"message"`
-		Priority     string   `json:"priority"`
-		Service      string   `json:"service"`
-		Source       string   `json:"source"`
-		Status       string   `json:"status"`
-		Type         string   `json:"type"`
-		Environment  string   `json:"environment"`
-		Impact       bool     `json:"impact"`
-		StartDate    string   `json:"startDate"`
-		EndDate      string   `json:"endDate"`
-		Owner        string   `json:"owner"`
-		StackHolders []string `json:"stackHolders"`
-		Notification bool     `json:"notification"`
+		Message       string   `json:"message"`
+		Priority      string   `json:"priority"`
+		Service       string   `json:"service"`
+		Source        string   `json:"source"`
+		Status        string   `json:"status"`
+		Type          string   `json:"type"`
+		Environment   string   `json:"environment"`
+		Impact        bool     `json:"impact"`
+		StartDate     string   `json:"startDate"`
+		EndDate       string   `json:"endDate"`
+		Owner         string   `json:"owner"`
+		StakeHolders  []string `json:"stakeHolders"`
+		Notification  bool     `json:"notification"`
+		Notifications []string `json:"notifications"`
 	} `json:"attributes"`
 	Links struct {
 		PullRequestLink string `json:"pullRequestLink"`
@@ -128,7 +129,7 @@ func formatSlackMessageByEnvironment(events []TodayEventReponse) string {
 				}
 				messageURL := createSlackMessageURL(workspace, channel, event.Metadata.SlackId)
 
-				message += fmt.Sprintf("    -  %s - %s <%s|thread>\n", time, event.Title, messageURL)
+				message += fmt.Sprintf("    -  %s - %s %s\n", time, event.Title, messageURL)
 			}
 		}
 	}
@@ -168,7 +169,7 @@ func createSlackMessageURL(teamDomain, channelId, slackId string) string {
 	if !isValidSlackTimestamp(slackId) {
 		return ""
 	}
-	return fmt.Sprintf("https://%s.slack.com/archives/%s/p%s", teamDomain, channelId, strings.ReplaceAll(slackId, ".", ""))
+	return fmt.Sprintf("<https://%s.slack.com/archives/%s/p%s|thread>", teamDomain, channelId, strings.ReplaceAll(slackId, ".", ""))
 }
 
 // getEnvironmentEmoji retourne l'émoji correspondant à un environnement
@@ -180,6 +181,8 @@ func getEnvironmentEmoji(environment string) (string, string) {
 		return ":prep:", "PREPROD"
 	case "UAT":
 		return ":uat:", "UAT"
+	case "development":
+		return ":dev:", "DEV"
 	default:
 		return ":question:", "UNKOWN"
 	}

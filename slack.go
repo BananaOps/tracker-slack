@@ -33,9 +33,10 @@ type tracker struct {
 	PullRequest  string   `json:"pull_request"`
 	Description  string   `json:"description"`
 	Owner        string   `json:"owner"`
-	Stackholders []string `json:"stackHolders"`
+	Stakeholders []string `json:"stakeHolders"`
 	EndDate      int64    `json:"end_date"`
 	ReleaseTeam  string   `json:"release_team"`
+	SupportTeam  string   `json:"support_team"`
 	SlackId      string   `json:"slack_id"`
 }
 
@@ -127,12 +128,13 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 		tracker.Impact = values["impact"]["select_input-impact"].SelectedOption.Value
 		tracker.Datetime = values["datetime"]["datetimepicker-action"].SelectedDateTime
 		tracker.EndDate = values["enddatetime"]["datetimepicker-action"].SelectedDateTime
-		tracker.Stackholders = values["stackholders"]["multi_users_select-action"].SelectedUsers
+		tracker.Stakeholders = values["stakeholders"]["multi_users_select-action"].SelectedUsers
 		tracker.Ticket = values["ticket"]["url_text_input-action"].Value
 		tracker.PullRequest = values["pull_request"]["url_text_input-action"].Value
 		tracker.Description = values["changelog"]["text_input-action"].Value
 		tracker.Owner = i.User.Name
 		tracker.ReleaseTeam = values["release"]["select_input-release"].SelectedOption.Value
+		tracker.SupportTeam = values["support"]["select_input-support"].SelectedOption.Value
 
 		api := slack.New(botToken)
 		var channelID string
@@ -246,23 +248,32 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 	api := slack.New(botToken)
 
 	var message string
+	var reaction string
 	switch action {
 	case "in_progress":
 		message = fmt.Sprintf(":loading: In progress by <@%s>", user)
+		reaction = "loading"
 	case "pause":
 		message = fmt.Sprintf(":double_vertical_bar: Paused by <@%s>", user)
+		reaction = "double_vertical_bar"
 	case "cancelled":
 		message = fmt.Sprintf(":x: Cancelled by <@%s>", user)
+		reaction = "x"
 	case "post_poned":
 		message = fmt.Sprintf(":hourglass_flowing_sand: Postponed by <@%s>", user)
+		reaction = "hourglass_flowing_sand"
 	case "done":
 		message = fmt.Sprintf(":white_check_mark: Done by <@%s>", user)
+		reaction = "white_check_mark"
 	case "approved":
 		message = fmt.Sprintf(":ok: Approved by <@%s>", user)
+		reaction = "ok"
 	case "rejected":
 		message = fmt.Sprintf(":x: Rejected by <@%s>", user)
+		reaction = "x"
 	case "edit":
 		message = fmt.Sprintf(":pencil: Edited by <@%s>", user)
+		reaction = "pencil"
 	}
 
 	_, _, err := api.PostMessage(
@@ -273,23 +284,60 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 	if err != nil {
 		fmt.Printf("Error posting message to thread: %v", err)
 	}
+
+	err = messageReaction(api, channelID, messageTs, reaction)
+	if err != nil {
+		fmt.Printf("Error manage reaction: %v", err)
+	}
+}
+
+func messageReaction(api *slack.Client, channelID string, messageTs string, reaction string) error {
+
+	itemRef := slack.ItemRef{
+		Channel:   channelID,
+		Timestamp: messageTs,
+	}
+
+	trackerReactions, err := api.GetReactions(
+		itemRef,
+		slack.GetReactionsParameters{
+			Full: true,
+		})
+
+	if err != nil {
+		return err
+	}
+
+	for _, reaction := range trackerReactions {
+		err = api.RemoveReaction(reaction.Name, itemRef)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = api.AddReaction(reaction, itemRef)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 type Payload struct {
 	Attributes struct {
-		Message      string   `json:"message"`
-		Priority     int      `json:"priority"`
-		Service      string   `json:"service"`
-		Source       string   `json:"source"`
-		Status       int      `json:"status"`
-		Type         int      `json:"type"`
-		Environment  int      `json:"environment"`
-		Impact       bool     `json:"impact"`
-		StartDate    string   `json:"start_date"`
-		EndDate      string   `json:"end_date"`
-		Owner        string   `json:"owner"`
-		StackHolders []string `json:"stackHolders"`
-		Notification bool     `json:"notification"`
+		Message       string   `json:"message"`
+		Priority      int      `json:"priority"`
+		Service       string   `json:"service"`
+		Source        string   `json:"source"`
+		Status        int      `json:"status"`
+		Type          int      `json:"type"`
+		Environment   int      `json:"environment"`
+		Impact        bool     `json:"impact"`
+		StartDate     string   `json:"start_date"`
+		EndDate       string   `json:"end_date"`
+		Owner         string   `json:"owner"`
+		StakeHolders  []string `json:"stakeHolders"`
+		Notification  bool     `json:"notification"`
+		Notifications []string `json:"notifications"`
 	} `json:"attributes"`
 	Links struct {
 		PullRequestLink string `json:"pull_request_link"`
@@ -301,19 +349,20 @@ type Payload struct {
 
 type EventReponse struct {
 	Attributes struct {
-		Message      string   `json:"message"`
-		Priority     string   `json:"priority"`
-		Service      string   `json:"service"`
-		Source       string   `json:"source"`
-		Status       string   `json:"status"`
-		Type         string   `json:"type"`
-		Environment  string   `json:"environment"`
-		Impact       bool     `json:"impact"`
-		StartDate    string   `json:"startDate"`
-		EndDate      string   `json:"endDate"`
-		Owner        string   `json:"owner"`
-		StackHolders []string `json:"stackHolders"`
-		Notification bool     `json:"notification"`
+		Message       string   `json:"message"`
+		Priority      string   `json:"priority"`
+		Service       string   `json:"service"`
+		Source        string   `json:"source"`
+		Status        string   `json:"status"`
+		Type          string   `json:"type"`
+		Environment   string   `json:"environment"`
+		Impact        bool     `json:"impact"`
+		StartDate     string   `json:"startDate"`
+		EndDate       string   `json:"endDate"`
+		Owner         string   `json:"owner"`
+		StakeHolders  []string `json:"stakeHolders"`
+		Notification  bool     `json:"notification"`
+		Notifications []string `json:"notifications"`
 	} `json:"attributes"`
 	Links struct {
 		PullRequestLink string `json:"pullRequestLink"`
@@ -331,7 +380,7 @@ type Response struct {
 	Event EventReponse `json:"event"`
 }
 
-var environment map[string]int = map[string]int{"PROD": 7, "PREP": 6, "UAT": 4}
+var environment map[string]int = map[string]int{"PROD": 7, "PREP": 6, "UAT": 4, "DEV": 1}
 
 func postTrackerEvent(tracker tracker) {
 
@@ -357,19 +406,19 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.Owner = tracker.Owner
 	data.Links.PullRequestLink = tracker.PullRequest
 	data.Links.Ticket = tracker.Ticket
-	data.Attributes.StackHolders = tracker.Stackholders
-	fmt.Println("StackHolders:", data.Attributes.StackHolders)
+	data.Attributes.StakeHolders = tracker.Stakeholders
 	if tracker.ReleaseTeam == "Yes" {
-		data.Attributes.Notification = true
-	} else {
-		data.Attributes.Notification = false
+		data.Attributes.Notifications = append(data.Attributes.Notifications, "release")
 	}
-	if IsValidURL(tracker.Ticket) && tracker.Ticket == "" {
+	if tracker.SupportTeam == "Yes" {
+		data.Attributes.Notifications = append(data.Attributes.Notifications, "support")
+	}
+	if IsValidURL(tracker.Ticket) || tracker.Ticket == "" {
 		data.Links.PullRequestLink = tracker.PullRequest
 	} else {
 		fmt.Printf("Invalid PullRequest URL: %s\n", tracker.PullRequest)
 	}
-	if IsValidURL(tracker.Ticket) && tracker.Ticket == "" {
+	if IsValidURL(tracker.Ticket) || tracker.Ticket == "" {
 		data.Links.Ticket = tracker.Ticket
 	} else {
 		fmt.Printf("Invalid Ticket URL: %s\n", tracker.Ticket)
@@ -419,23 +468,24 @@ func updateTrackerEvent(tracker tracker) {
 	}
 	data.Attributes.EndDate = time.Unix(tracker.EndDate, 0).Format("2006-01-02T15:04:05Z")
 	data.Attributes.Owner = tracker.Owner
-	if IsValidURL(tracker.Ticket) && tracker.Ticket == "" {
+	if IsValidURL(tracker.Ticket) || tracker.Ticket == "" {
 		data.Links.PullRequestLink = tracker.PullRequest
 	} else {
 		fmt.Printf("Invalid PullRequest URL: %s\n", tracker.PullRequest)
 	}
-	if IsValidURL(tracker.Ticket) && tracker.Ticket == "" {
+	if IsValidURL(tracker.Ticket) || tracker.Ticket == "" {
 		data.Links.Ticket = tracker.Ticket
 	} else {
 		fmt.Printf("Invalid Ticket URL: %s\n", tracker.Ticket)
 	}
 	data.Title = tracker.Summary
 	data.SlackId = tracker.SlackId
-	data.Attributes.StackHolders = tracker.Stackholders
+	data.Attributes.StakeHolders = tracker.Stakeholders
 	if tracker.ReleaseTeam == "Yes" {
-		data.Attributes.Notification = true
-	} else {
-		data.Attributes.Notification = false
+		data.Attributes.Notifications = append(data.Attributes.Notifications, "release")
+	}
+	if tracker.SupportTeam == "Yes" {
+		data.Attributes.Notifications = append(data.Attributes.Notifications, "support")
 	}
 
 	payloadBytes, err := json.Marshal(data)
