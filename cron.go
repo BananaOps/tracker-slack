@@ -26,7 +26,7 @@ type TodayEventReponse struct {
 		StartDate    string   `json:"startDate"`
 		EndDate      string   `json:"endDate"`
 		Owner        string   `json:"owner"`
-		StackHolders []string `json:"stackHolders"`
+		StakeHolders []string `json:"stakeHolders"`
 		Notification bool     `json:"notification"`
 	} `json:"attributes"`
 	Links struct {

@@ -33,9 +33,10 @@ type tracker struct {
 	PullRequest  string   `json:"pull_request"`
 	Description  string   `json:"description"`
 	Owner        string   `json:"owner"`
-	Stackholders []string `json:"stackHolders"`
+	Stakeholders []string `json:"stakeHolders"`
 	EndDate      int64    `json:"end_date"`
 	ReleaseTeam  string   `json:"release_team"`
+	SupportTeam  string   `json:"support_team"`
 	SlackId      string   `json:"slack_id"`
 }
 
@@ -127,12 +128,13 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 		tracker.Impact = values["impact"]["select_input-impact"].SelectedOption.Value
 		tracker.Datetime = values["datetime"]["datetimepicker-action"].SelectedDateTime
 		tracker.EndDate = values["enddatetime"]["datetimepicker-action"].SelectedDateTime
-		tracker.Stackholders = values["stackholders"]["multi_users_select-action"].SelectedUsers
+		tracker.Stakeholders = values["stakeholders"]["multi_users_select-action"].SelectedUsers
 		tracker.Ticket = values["ticket"]["url_text_input-action"].Value
 		tracker.PullRequest = values["pull_request"]["url_text_input-action"].Value
 		tracker.Description = values["changelog"]["text_input-action"].Value
 		tracker.Owner = i.User.Name
 		tracker.ReleaseTeam = values["release"]["select_input-release"].SelectedOption.Value
+		tracker.SupportTeam = values["support"]["select_input-support"].SelectedOption.Value
 
 		api := slack.New(botToken)
 		var channelID string
@@ -333,7 +335,7 @@ type Payload struct {
 		StartDate    string   `json:"start_date"`
 		EndDate      string   `json:"end_date"`
 		Owner        string   `json:"owner"`
-		StackHolders []string `json:"stackHolders"`
+		StakeHolders []string `json:"stakeHolders"`
 		Notification bool     `json:"notification"`
 	} `json:"attributes"`
 	Links struct {
@@ -357,7 +359,7 @@ type EventReponse struct {
 		StartDate    string   `json:"startDate"`
 		EndDate      string   `json:"endDate"`
 		Owner        string   `json:"owner"`
-		StackHolders []string `json:"stackHolders"`
+		StakeHolders []string `json:"stakeHolders"`
 		Notification bool     `json:"notification"`
 	} `json:"attributes"`
 	Links struct {
@@ -402,9 +404,14 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.Owner = tracker.Owner
 	data.Links.PullRequestLink = tracker.PullRequest
 	data.Links.Ticket = tracker.Ticket
-	data.Attributes.StackHolders = tracker.Stackholders
-	fmt.Println("StackHolders:", data.Attributes.StackHolders)
+	data.Attributes.StakeHolders = tracker.Stakeholders
+	fmt.Println("StakeHolders:", data.Attributes.StakeHolders)
 	if tracker.ReleaseTeam == "Yes" {
+		data.Attributes.Notification = true
+	} else {
+		data.Attributes.Notification = false
+	}
+	if tracker.SupportTeam == "Yes" {
 		data.Attributes.Notification = true
 	} else {
 		data.Attributes.Notification = false
@@ -476,8 +483,13 @@ func updateTrackerEvent(tracker tracker) {
 	}
 	data.Title = tracker.Summary
 	data.SlackId = tracker.SlackId
-	data.Attributes.StackHolders = tracker.Stackholders
+	data.Attributes.StakeHolders = tracker.Stakeholders
 	if tracker.ReleaseTeam == "Yes" {
+		data.Attributes.Notification = true
+	} else {
+		data.Attributes.Notification = false
+	}
+	if tracker.SupportTeam == "Yes" {
 		data.Attributes.Notification = true
 	} else {
 		data.Attributes.Notification = false

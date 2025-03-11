@@ -17,8 +17,8 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 	ticket := inputUrl("ticket", "Link Ticket Issue", event.Links.Ticket, ":ticket:")
 	ticket.Optional = true
 
-	stackholders := inputMultiUser("stackholders", ":dart: Stackholders", event.Attributes.StackHolders)
-	stackholders.Optional = true
+	stakeholders := inputMultiUser("stakeholders", ":dart: Stakeholders", event.Attributes.StakeHolders)
+	stakeholders.Optional = true
 
 	changelog := inputText("changelog", "Description", event.Attributes.Message, "", true)
 	changelog.Optional = true
@@ -39,10 +39,11 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 				inputEnv(event.Attributes.Environment),
 				inputImpact(event.Attributes.Impact),
 				inputReleaseTeam(event.Attributes.Notification),
+				inputSupportTeam(event.Attributes.Notification),
 				//inputAction(),
 				inputDatetime("datetime", "Start Date", event.Attributes.StartDate),
 				endDateTime,
-				stackholders,
+				stakeholders,
 				ticket,
 				pullRequest,
 				changelog,
@@ -57,8 +58,8 @@ func blockMessage(tracker tracker) []slack.Block {
 
 	var users []string
 
-	for i := range tracker.Stackholders {
-		user := fmt.Sprintf("<@%s>", tracker.Stackholders[i])
+	for i := range tracker.Stakeholders {
+		user := fmt.Sprintf("<@%s>", tracker.Stakeholders[i])
 		users = append(users, user)
 	}
 
@@ -81,12 +82,13 @@ func blockMessage(tracker tracker) []slack.Block {
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
 	impact := fmt.Sprintf(":boom: *Impact:* %s \n", tracker.Impact)
 	releaseTeam := ":slack_notification: *Notification Release Team:* @release-team \n"
+	supportTeam := ":slack_notification: *Notification Support Team:* @team-support \n"
 	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
 	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
 
 	var stackholder string
 	if len(users) > 0 {
-		stackholder = fmt.Sprintf(":dart: *Stackholder:* %s \n", strings.Join(users, ", "))
+		stackholder = fmt.Sprintf(":dart: *Stakeholders:* %s \n", strings.Join(users, ", "))
 	}
 
 	var pullRequest string
@@ -98,17 +100,20 @@ func blockMessage(tracker tracker) []slack.Block {
 	if tracker.Ticket != "" {
 		ticket = fmt.Sprintf(":ticket: *Ticket Issue:* %s \n", tracker.Ticket)
 	}
-	var text string
-	if tracker.ReleaseTeam == "Yes" {
-		text = summary + project + date + environment + impact + owner + releaseTeam + stackholder + ticket + pullRequest + description
-	} else {
-		text = summary + project + date + environment + impact + owner + stackholder + ticket + pullRequest + description
+	
+	if tracker.ReleaseTeam == "No" {
+		releaseTeam = ""
 	}
+	if tracker.SupportTeam == "No" {
+		supportTeam = ""
+	}
+
+	message := summary + project + date + environment + impact + owner + releaseTeam + supportTeam + stackholder + ticket + pullRequest + description
 
 	// Define the modal blocks
 	blocks := []slack.Block{
 		slack.NewSectionBlock(
-			slack.NewTextBlockObject("mrkdwn", text, false, false),
+			slack.NewTextBlockObject("mrkdwn", message, false, false),
 			nil,
 			nil,
 		),
@@ -240,6 +245,30 @@ func inputReleaseTeam(value bool) *slack.InputBlock {
 	return slack.NewInputBlock(
 		"release",
 		slack.NewTextBlockObject("plain_text", ":question: Notify Release Team ", true, false),
+		nil,
+		block,
+	)
+}
+
+func inputSupportTeam(value bool) *slack.InputBlock {
+
+	block := slack.NewOptionsSelectBlockElement(
+		slack.OptTypeStatic,
+		slack.NewTextBlockObject("plain_text", "Need notify Support Team ?", true, false),
+		"select_input-support",
+		slack.NewOptionBlockObject("Yes", slack.NewTextBlockObject("plain_text", "Yes", true, false), nil),
+		slack.NewOptionBlockObject("No", slack.NewTextBlockObject("plain_text", "No", true, false), nil),
+	)
+
+	if value {
+		block.InitialOption = slack.NewOptionBlockObject("Yes", slack.NewTextBlockObject("plain_text", "Yes", true, false), nil)
+	} else {
+		block.InitialOption = slack.NewOptionBlockObject("No", slack.NewTextBlockObject("plain_text", "No", true, false), nil)
+	}
+
+	return slack.NewInputBlock(
+		"support",
+		slack.NewTextBlockObject("plain_text", ":question: Notify Support Team ", true, false),
 		nil,
 		block,
 	)
