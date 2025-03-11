@@ -28,6 +28,7 @@ type TodayEventReponse struct {
 		Owner        string   `json:"owner"`
 		StakeHolders []string `json:"stakeHolders"`
 		Notification bool     `json:"notification"`
+		Notifications []string     `json:"notifications"`
 	} `json:"attributes"`
 	Links struct {
 		PullRequestLink string `json:"pullRequestLink"`

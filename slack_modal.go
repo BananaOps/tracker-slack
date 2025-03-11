@@ -26,6 +26,9 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 	endDateTime := inputDatetime("enddatetime", "End Date", event.Attributes.EndDate)
 	endDateTime.Optional = true
 
+	checkNotificationRelease := checkNotification(event.Attributes.Notifications, "release")
+	checkNotificationSupport := checkNotification(event.Attributes.Notifications, "support")
+
 	modalRequest := slack.ModalViewRequest{
 		Type:       slack.VTModal,
 		CallbackID: "modal-identifier",
@@ -38,8 +41,8 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 				inputText("project", "Project", event.Attributes.Service, ":rocket:", false),
 				inputEnv(event.Attributes.Environment),
 				inputImpact(event.Attributes.Impact),
-				inputReleaseTeam(event.Attributes.Notification),
-				inputSupportTeam(event.Attributes.Notification),
+				inputReleaseTeam(checkNotificationRelease),
+				inputSupportTeam(checkNotificationSupport),
 				//inputAction(),
 				inputDatetime("datetime", "Start Date", event.Attributes.StartDate),
 				endDateTime,
@@ -52,6 +55,15 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 	}
 
 	return modalRequest
+}
+
+func checkNotification(notification []string, name string) bool {
+	for i := range notification {
+		if strings.EqualFold(notification[i], name) {
+			return true
+		}
+	}
+	return false
 }
 
 func blockMessage(tracker tracker) []slack.Block {
@@ -81,8 +93,8 @@ func blockMessage(tracker tracker) []slack.Block {
 	date := fmt.Sprintf(":date: *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
 	impact := fmt.Sprintf(":boom: *Impact:* %s \n", tracker.Impact)
-	releaseTeam := ":slack_notification: *Notification Release Team:* @release-team \n"
-	supportTeam := ":slack_notification: *Notification Support Team:* @team-support \n"
+	releaseTeam := ":slack_notification: *Notification Release:* @release-team \n"
+	supportTeam := ":slack_notification: *Notification Support:* @team-support \n"
 	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
 	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
 
@@ -100,7 +112,7 @@ func blockMessage(tracker tracker) []slack.Block {
 	if tracker.Ticket != "" {
 		ticket = fmt.Sprintf(":ticket: *Ticket Issue:* %s \n", tracker.Ticket)
 	}
-	
+
 	if tracker.ReleaseTeam == "No" {
 		releaseTeam = ""
 	}
