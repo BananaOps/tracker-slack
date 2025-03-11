@@ -15,20 +15,20 @@ import (
 
 type TodayEventReponse struct {
 	Attributes struct {
-		Message      string   `json:"message"`
-		Priority     string   `json:"priority"`
-		Service      string   `json:"service"`
-		Source       string   `json:"source"`
-		Status       string   `json:"status"`
-		Type         string   `json:"type"`
-		Environment  string   `json:"environment"`
-		Impact       bool     `json:"impact"`
-		StartDate    string   `json:"startDate"`
-		EndDate      string   `json:"endDate"`
-		Owner        string   `json:"owner"`
-		StakeHolders []string `json:"stakeHolders"`
-		Notification bool     `json:"notification"`
-		Notifications []string     `json:"notifications"`
+		Message       string   `json:"message"`
+		Priority      string   `json:"priority"`
+		Service       string   `json:"service"`
+		Source        string   `json:"source"`
+		Status        string   `json:"status"`
+		Type          string   `json:"type"`
+		Environment   string   `json:"environment"`
+		Impact        bool     `json:"impact"`
+		StartDate     string   `json:"startDate"`
+		EndDate       string   `json:"endDate"`
+		Owner         string   `json:"owner"`
+		StakeHolders  []string `json:"stakeHolders"`
+		Notification  bool     `json:"notification"`
+		Notifications []string `json:"notifications"`
 	} `json:"attributes"`
 	Links struct {
 		PullRequestLink string `json:"pullRequestLink"`
