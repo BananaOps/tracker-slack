@@ -246,23 +246,32 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 	api := slack.New(botToken)
 
 	var message string
+	var reaction string
 	switch action {
 	case "in_progress":
 		message = fmt.Sprintf(":loading: In progress by <@%s>", user)
+		reaction = "loading"
 	case "pause":
 		message = fmt.Sprintf(":double_vertical_bar: Paused by <@%s>", user)
+		reaction = "pause"
 	case "cancelled":
 		message = fmt.Sprintf(":x: Cancelled by <@%s>", user)
+		reaction = "x"
 	case "post_poned":
 		message = fmt.Sprintf(":hourglass_flowing_sand: Postponed by <@%s>", user)
+		reaction = "hourglass_flowing_sand"
 	case "done":
 		message = fmt.Sprintf(":white_check_mark: Done by <@%s>", user)
+		reaction = "white_check_mark"
 	case "approved":
 		message = fmt.Sprintf(":ok: Approved by <@%s>", user)
+		reaction = "ok"
 	case "rejected":
 		message = fmt.Sprintf(":x: Rejected by <@%s>", user)
+		reaction = "x"
 	case "edit":
 		message = fmt.Sprintf(":pencil: Edited by <@%s>", user)
+		reaction = "pencil"
 	}
 
 	_, _, err := api.PostMessage(
@@ -273,6 +282,42 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 	if err != nil {
 		fmt.Printf("Error posting message to thread: %v", err)
 	}
+
+	err = messageReaction(api, channelID, messageTs, reaction)
+	if err != nil {
+		fmt.Printf("Error manage reaction: %v", err)
+	}
+}
+
+func messageReaction(api *slack.Client, channelID string, messageTs string, reaction string) error {
+
+	itemRef := slack.ItemRef{
+		Channel:   channelID,
+		Timestamp: messageTs,
+	}
+
+	trackerReactions, err := api.GetReactions(
+		itemRef,
+		slack.GetReactionsParameters{
+			Full: true,
+		})
+
+	if err != nil {
+		return err
+	}
+
+	for _, reaction := range trackerReactions {
+		err = api.RemoveReaction(reaction.Name, itemRef)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = api.AddReaction(reaction, itemRef)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 type Payload struct {
