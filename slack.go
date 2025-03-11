@@ -253,7 +253,7 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 		reaction = "loading"
 	case "pause":
 		message = fmt.Sprintf(":double_vertical_bar: Paused by <@%s>", user)
-		reaction = "pause"
+		reaction = "double_vertical_bar"
 	case "cancelled":
 		message = fmt.Sprintf(":x: Cancelled by <@%s>", user)
 		reaction = "x"

@@ -128,7 +128,7 @@ func formatSlackMessageByEnvironment(events []TodayEventReponse) string {
 				}
 				messageURL := createSlackMessageURL(workspace, channel, event.Metadata.SlackId)
 
-				message += fmt.Sprintf("    -  %s - %s <%s|thread>\n", time, event.Title, messageURL)
+				message += fmt.Sprintf("    -  %s - %s %s\n", time, event.Title, messageURL)
 			}
 		}
 	}
@@ -168,7 +168,7 @@ func createSlackMessageURL(teamDomain, channelId, slackId string) string {
 	if !isValidSlackTimestamp(slackId) {
 		return ""
 	}
-	return fmt.Sprintf("https://%s.slack.com/archives/%s/p%s", teamDomain, channelId, strings.ReplaceAll(slackId, ".", ""))
+	return fmt.Sprintf("<https://%s.slack.com/archives/%s/p%s|thread>", teamDomain, channelId, strings.ReplaceAll(slackId, ".", ""))
 }
 
 // getEnvironmentEmoji retourne l'émoji correspondant à un environnement
