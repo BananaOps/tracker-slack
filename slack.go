@@ -167,7 +167,7 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 
 			// Post tracker event
 			tracker.SlackId = string(messageTimestamp)
-			go updateTrackerEvent(tracker)
+			go editTrackerEvent(tracker)
 
 		} else {
 
@@ -196,14 +196,12 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 
 func handleBlockActions(callback slack.InteractionCallback, w http.ResponseWriter) {
 	for _, action := range callback.ActionCallback.BlockActions {
+
 		switch action.ActionID {
 		case "action-edit":
-
 			messageTimestamp = callback.Message.Timestamp
 			messageChannel = callback.Channel.ID
-
 			event := getTrackerEvent(messageTimestamp)
-			//fmt.Println("event:", event)
 			api := slack.New(botToken)
 			view := generateModalRequest(event.Event)
 			view.CallbackID = "edit"
@@ -212,8 +210,6 @@ func handleBlockActions(callback slack.InteractionCallback, w http.ResponseWrite
 				fmt.Printf("Error Open view: %s", err)
 			}
 			w.WriteHeader(http.StatusOK)
-
-			//postThreadAction("edited", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 
 		case "action-approvers":
 			postThreadAction("approved", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
@@ -230,12 +226,17 @@ func handleBlockActions(callback slack.InteractionCallback, w http.ResponseWrite
 				postThreadAction("pause", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 
 			case "cancelled":
+				event := getTrackerEvent(callback.Message.Timestamp)
+				updateTrackerEvent(event.Event, 2)
 				postThreadAction("cancelled", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 
 			case "post_poned":
 				postThreadAction("post_poned", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 
 			case "done":
+				event := getTrackerEvent(callback.Message.Timestamp)
+				fmt.Println(event)
+				updateTrackerEvent(event.Event, 3)
 				postThreadAction("done", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 
 			}
@@ -446,7 +447,7 @@ func postTrackerEvent(tracker tracker) {
 	defer resp.Body.Close()
 }
 
-func updateTrackerEvent(tracker tracker) {
+func editTrackerEvent(tracker tracker) {
 
 	var data Payload
 
@@ -454,7 +455,7 @@ func updateTrackerEvent(tracker tracker) {
 	data.Attributes.Priority = 1
 	data.Attributes.Service = tracker.Project
 	data.Attributes.Source = "slack"
-	data.Attributes.Status = 1
+	data.Attributes.Status = 7
 	data.Attributes.Type = 1
 	data.Attributes.Environment = environment[tracker.Environment]
 	if tracker.Impact == "Yes" {
@@ -487,6 +488,51 @@ func updateTrackerEvent(tracker tracker) {
 	if tracker.SupportTeam == "Yes" {
 		data.Attributes.Notifications = append(data.Attributes.Notifications, "support")
 	}
+
+	payloadBytes, err := json.Marshal(data)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	body := bytes.NewReader(payloadBytes)
+
+	req, err := http.NewRequest("PUT", os.Getenv("TRACKER_HOST")+"/api/v1alpha1/event", body)
+	if err != nil {
+		fmt.Println(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resp.Body.Close()
+}
+
+var environmentMap map[string]int = map[string]int{"production": 7, "preproduction": 6, "UAT": 4, "development": 1}
+
+func updateTrackerEvent(tracker EventReponse, status int) {
+
+	var data Payload
+
+	data.Attributes.Message = tracker.Attributes.Message
+	data.Attributes.Priority = 1
+	data.Attributes.Service = tracker.Attributes.Service
+	data.Attributes.Source = "slack"
+	data.Attributes.Status = status
+	data.Attributes.Type = 1
+	fmt.Println(tracker)
+	data.Attributes.Environment = environmentMap[tracker.Attributes.Environment]
+	data.Attributes.Impact = tracker.Attributes.Impact
+	data.Attributes.StartDate = tracker.Attributes.StartDate
+	data.Attributes.EndDate = tracker.Attributes.EndDate
+	data.Attributes.Owner = tracker.Attributes.Owner
+	data.Links.PullRequestLink = tracker.Links.PullRequestLink
+	data.Links.Ticket = tracker.Links.Ticket
+	data.Title = tracker.Title
+	data.SlackId = tracker.Metadata.SlackId
+	data.Attributes.StakeHolders = tracker.Attributes.StakeHolders
+	data.Attributes.Notifications = tracker.Attributes.Notifications
 
 	payloadBytes, err := json.Marshal(data)
 	if err != nil {
