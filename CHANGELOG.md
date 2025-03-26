@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/BananaOps/tracker-slack/compare/v0.4.0...v0.4.1) (2025-03-26)
+
+
+### Bug Fixes
+
+* correct docker image tag ([4102c43](https://github.com/BananaOps/tracker-slack/commit/4102c43f1eb3dbe3c588b2ac51147f94f148dfb2))
+
 ## [0.4.0](https://github.com/BananaOps/tracker-slack/compare/v0.3.0...v0.4.0) (2025-03-26)
 
 
