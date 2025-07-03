@@ -70,6 +70,7 @@ func verifySigningSecret(r *http.Request) error {
 	return nil
 }
 
+// handleCommand processes incoming Slack commands
 func handleCommand(w http.ResponseWriter, r *http.Request) {
 
 	// check if the request is authorized
@@ -82,19 +83,45 @@ func handleCommand(w http.ResponseWriter, r *http.Request) {
 
 	s, err := slack.SlashCommandParse(r)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Println(err.Error())
+		http.Error(w, "Failed to parse Slack command", http.StatusInternalServerError)
 		return
 	}
 
+	switch s.Command {
+	case "/deployment":
+		handleDeploymentCommand(w, s)
+	case "/incident":
+		handleIncidentCommand(w, s)
+	case "/drift":
+		handleDriftCommand(w, s)
+	default:
+		http.Error(w, "Unknown command", http.StatusBadRequest)
+	}
+}
+
+// handleDeploymentCommand handles the /deployment command
+func handleDeploymentCommand(w http.ResponseWriter, s slack.SlashCommand) {
 	api := slack.New(botToken)
 	view := generateModalRequest(EventReponse{})
-	_, err = api.OpenView(s.TriggerID, view)
+	_, err := api.OpenView(s.TriggerID, view)
 	if err != nil {
 		fmt.Printf("Error opening view: %s", err)
 	}
 	w.WriteHeader(http.StatusOK)
 }
+
+// handleIncidentCommand handles the /incident command
+func handleIncidentCommand(w http.ResponseWriter, s slack.SlashCommand) {
+	response := fmt.Sprintf("Handling incident command with text: %s", s.Text)
+	w.Write([]byte(response))
+}
+
+// handleDriftCommand handles the /drift command
+func handleDriftCommand(w http.ResponseWriter, s slack.SlashCommand) {
+	response := fmt.Sprintf("Handling drift command with text: %s", s.Text)
+	w.Write([]byte(response))
+}
+
 
 func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 

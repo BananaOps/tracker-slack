@@ -23,13 +23,13 @@ func run() (err error) {
 
 	c := cron.New()
 
-	// Ajouter une tâche
+	// Add task
 	_, err = c.AddFunc(os.Getenv("TRACKER_SLACK_CRON_MESSAGE"), listEventToday)
 	if err != nil {
 		log.Fatalf("Error adding scheduled task : %v", err)
 	}
 
-	// Démarrer le planificateur
+	// Start Task
 	c.Start()
 	log.Println("task planner started")
 
@@ -69,14 +69,6 @@ func run() (err error) {
 
 func newHTTPHandler() http.Handler {
 	mux := http.NewServeMux()
-
-	// handleFunc is a replacement for mux.HandleFunc
-	// which enriches the handler's HTTP instrumentation with the pattern as the http.route.
-	//handleFunc := func(pattern string, handlerFunc func(http.ResponseWriter, *http.Request)) {
-	//	// Configure the "http.route" for the HTTP instrumentation.
-	//	//handler := otelhttp.WithRouteTag(pattern, http.HandlerFunc(handlerFunc))
-	//	mux.Handle(pattern, http.HandlerFunc(handlerFunc))
-	//}
 
 	// Register handlers.
 	mux.HandleFunc("/slack/command", handleCommand)
