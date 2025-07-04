@@ -31,7 +31,6 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 
 	modalRequest := slack.ModalViewRequest{
 		Type:       slack.VTModal,
-		CallbackID: "modal-identifier",
 		Title:      slack.NewTextBlockObject("plain_text", "Tracker", true, false),
 		Submit:     slack.NewTextBlockObject("plain_text", "Submit", true, false),
 		Close:      slack.NewTextBlockObject("plain_text", "Cancel", true, false),
