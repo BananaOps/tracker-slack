@@ -24,6 +24,7 @@ var (
 )
 
 type tracker struct {
+	Type         int      `json:"type"`
 	Datetime     int64    `json:"datetime"`
 	Summary      string   `json:"summary"`
 	Project      string   `json:"project"`
@@ -102,7 +103,7 @@ func handleCommand(w http.ResponseWriter, r *http.Request) {
 // handleDeploymentCommand handles the /deployment command
 func handleDeploymentCommand(w http.ResponseWriter, s slack.SlashCommand) {
 	api := slack.New(botToken)
-	view := generateModalRequest(EventReponse{})
+	view := generateDeploymentModalRequest(EventReponse{})
 	view.CallbackID = "deployment-create"
 	_, err := api.OpenView(s.TriggerID, view)
 	if err != nil {
@@ -119,8 +120,14 @@ func handleIncidentCommand(w http.ResponseWriter, s slack.SlashCommand) {
 
 // handleDriftCommand handles the /drift command
 func handleDriftCommand(w http.ResponseWriter, s slack.SlashCommand) {
-	response := fmt.Sprintf("Handling drift command with text: %s", s.Text)
-	w.Write([]byte(response))
+	api := slack.New(botToken)
+	view := generateDriftModalRequest(EventReponse{})
+	view.CallbackID = "drift-create"
+	_, err := api.OpenView(s.TriggerID, view)
+	if err != nil {
+		fmt.Printf("Error opening view: %s", err)
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -157,10 +164,20 @@ func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 // handleViewSubmission handles interactions of type view_submission
 func handleViewSubmission(w http.ResponseWriter, i slack.InteractionCallback) {
 	switch i.View.CallbackID {
-	case "deployment-edit":
-		handleEditModal(w, i)
 	case "deployment-create":
-		handleCreateModal(w, i)
+		handleCreateDeploymentModal(w, i)
+	case "deployment-edit":
+		handleEditDeploymentModal(w, i)
+	case "drift-create":
+		handleCreateDriftModal(w, i)
+	case "drift-edit":
+		handleEditDriftModal(w, i)
+	case "incident-create":
+		handleCreateDriftModal(w, i)
+	case "incident-edit":
+		handleEditDriftModal(w, i)
+
+
 	default:
 		fmt.Println("Unknown modal callback ID:", i.View.CallbackID)
 		w.WriteHeader(http.StatusBadRequest)
@@ -168,14 +185,49 @@ func handleViewSubmission(w http.ResponseWriter, i slack.InteractionCallback) {
 }
 
 // handleEditModal handles the edit modal
-func handleEditModal(w http.ResponseWriter, i slack.InteractionCallback) {
+func handleEditDeploymentModal(w http.ResponseWriter, i slack.InteractionCallback) {
 	api := slack.New(botToken)
 
 	tracker := extractTrackerFromModal(i)
 	// Specific logic for the "edit" modal
 	event := getTrackerEvent(messageTimestamp)
 	tracker.Owner = event.Event.Attributes.Owner
-	blocks := blockMessage(tracker)
+	blocks := blockDeploymentMessage(tracker)
+
+	channelID, slackTimestamp, _, err := api.UpdateMessage(messageChannel,
+		messageTimestamp,
+		slack.MsgOptionBlocks(blocks...),
+	)
+	if err != nil {
+		fmt.Printf("Error updating message: %s\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	_, _, err = api.PostMessage(
+		messageChannel,
+		slack.MsgOptionText(fmt.Sprintf(":pencil: Edited by <@%s>", i.User.ID), false),
+		slack.MsgOptionTS(messageTimestamp),
+	)
+	if err != nil {
+		fmt.Printf("Error posting message to thread: %v", err)
+	}
+	fmt.Printf("Message successfully updated to channel %s at %s \n", channelID, slackTimestamp)
+
+	// Post tracker event
+	tracker.SlackId = string(messageTimestamp)
+	go editTrackerEvent(tracker)
+
+	fmt.Println("Edit modal processed:", tracker)
+}
+
+// handleEditModal handles the edit modal
+func handleEditDriftModal(w http.ResponseWriter, i slack.InteractionCallback) {
+	api := slack.New(botToken)
+
+	tracker := extractTrackerFromModal(i)
+	// Specific logic for the "edit" modal
+	event := getTrackerEvent(messageTimestamp)
+	tracker.Owner = event.Event.Attributes.Owner
+	blocks := blockDriftMessage(tracker)
 
 	channelID, slackTimestamp, _, err := api.UpdateMessage(messageChannel,
 		messageTimestamp,
@@ -203,14 +255,14 @@ func handleEditModal(w http.ResponseWriter, i slack.InteractionCallback) {
 }
 
 // handleCreateModal handles the create modal
-func handleCreateModal(w http.ResponseWriter, i slack.InteractionCallback) {
+func handleCreateDeploymentModal(w http.ResponseWriter, i slack.InteractionCallback) {
 	api := slack.New(botToken)
-	
+
 	tracker := extractTrackerFromModal(i)
 
-	blocks := blockMessage(tracker)
+	blocks := blockDeploymentMessage(tracker)
 
-	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_SLACK_CHANNEL"),
+	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_DEPLOYMENT_CHANNEL"),
 		slack.MsgOptionBlocks(blocks...),
 	)
 	if err != nil {
@@ -220,6 +272,32 @@ func handleCreateModal(w http.ResponseWriter, i slack.InteractionCallback) {
 	fmt.Printf("Message successfully sent to channel %s at %s \n", channelID, slackTimestamp)
 	// Post tracker event
 	tracker.SlackId = string(slackTimestamp)
+	tracker.Type = 1
+	go postTrackerEvent(tracker)
+	// Add logic here to process the create modal
+	fmt.Println("Create modal processed:", tracker)
+}
+
+// handleCreateModal handles the create modal
+func handleCreateDriftModal(w http.ResponseWriter, i slack.InteractionCallback) {
+	api := slack.New(botToken)
+
+	tracker := extractTrackerFromModal(i)
+
+	blocks := blockDriftMessage(tracker)
+
+	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_DRIFT_CHANNEL"),
+		slack.MsgOptionBlocks(blocks...),
+	)
+	if err != nil {
+		fmt.Printf("Error posting message: %s\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	fmt.Printf("Message successfully sent to channel %s at %s \n", channelID, slackTimestamp)
+	// Post tracker event
+	tracker.SlackId = string(slackTimestamp)
+	tracker.Type = 3
+	tracker.Datetime = time.Now().Unix()
 	go postTrackerEvent(tracker)
 	// Add logic here to process the create modal
 	fmt.Println("Create modal processed:", tracker)
@@ -245,17 +323,31 @@ func extractTrackerFromModal(i slack.InteractionCallback) tracker {
 	}
 }
 
-func handleBlockActions(w http.ResponseWriter,callback slack.InteractionCallback) {
+// handleBlockActions handles interactions of type block_actions
+func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallback) {
 	for _, action := range callback.ActionCallback.BlockActions {
 
 		switch action.ActionID {
-		case "action-edit":
+		case "deployment-action-edit":
 			messageTimestamp = callback.Message.Timestamp
 			messageChannel = callback.Channel.ID
 			event := getTrackerEvent(messageTimestamp)
 			api := slack.New(botToken)
-			view := generateModalRequest(event.Event)
+			view := generateDeploymentModalRequest(event.Event)
 			view.CallbackID = "deployment-edit"
+			_, err := api.OpenView(callback.TriggerID, view)
+			if err != nil {
+				fmt.Printf("Error Open view: %s", err)
+			}
+			w.WriteHeader(http.StatusOK)
+
+		case "drift-action-edit":
+			messageTimestamp = callback.Message.Timestamp
+			messageChannel = callback.Channel.ID
+			event := getTrackerEvent(messageTimestamp)
+			api := slack.New(botToken)
+			view := generateDriftModalRequest(event.Event)
+			view.CallbackID = "drift-edit"
 			_, err := api.OpenView(callback.TriggerID, view)
 			if err != nil {
 				fmt.Printf("Error Open view: %s", err)
@@ -273,12 +365,15 @@ func handleBlockActions(w http.ResponseWriter,callback slack.InteractionCallback
 			case "in_progress":
 				postThreadAction("in_progress", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 
+			case "drift_in_progress":
+				postThreadAction("drift_in_progress", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+
 			case "pause":
 				postThreadAction("pause", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 
 			case "cancelled":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				updateTrackerEvent(event.Event, 2)
+				updateTrackerEvent(event.Event, 2, 1)
 				postThreadAction("cancelled", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 
 			case "post_poned":
@@ -287,8 +382,14 @@ func handleBlockActions(w http.ResponseWriter,callback slack.InteractionCallback
 			case "done":
 				event := getTrackerEvent(callback.Message.Timestamp)
 				fmt.Println(event)
-				updateTrackerEvent(event.Event, 3)
+				updateTrackerEvent(event.Event, 3, 1)
 				postThreadAction("done", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+
+			case "close":
+				event := getTrackerEvent(callback.Message.Timestamp)
+				fmt.Println(event)
+				updateTrackerEvent(event.Event, 10, 3)
+				postThreadAction("close", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 
 			}
 		}
@@ -305,6 +406,9 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 	case "in_progress":
 		message = fmt.Sprintf(":loading: In progress by <@%s>", user)
 		reaction = "loading"
+	case "drift_in_progress":
+		message = fmt.Sprintf(":warning: Drift In progress by <@%s>", user)
+		reaction = "warning"
 	case "pause":
 		message = fmt.Sprintf(":double_vertical_bar: Paused by <@%s>", user)
 		reaction = "double_vertical_bar"
@@ -316,6 +420,9 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 		reaction = "hourglass_flowing_sand"
 	case "done":
 		message = fmt.Sprintf(":white_check_mark: Done by <@%s>", user)
+		reaction = "white_check_mark"
+	case "close":
+		message = fmt.Sprintf(":white_check_mark: Closed by <@%s>", user)
 		reaction = "white_check_mark"
 	case "approved":
 		message = fmt.Sprintf(":ok: Approved by <@%s>", user)
@@ -443,7 +550,7 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.Service = tracker.Project
 	data.Attributes.Source = "slack"
 	data.Attributes.Status = 1
-	data.Attributes.Type = 1
+	data.Attributes.Type = tracker.Type
 	data.Attributes.Environment = environment[tracker.Environment]
 	if tracker.Impact == "Yes" {
 		data.Attributes.Impact = true
@@ -562,7 +669,7 @@ func editTrackerEvent(tracker tracker) {
 
 var environmentMap map[string]int = map[string]int{"production": 7, "preproduction": 6, "UAT": 4, "development": 1}
 
-func updateTrackerEvent(tracker EventReponse, status int) {
+func updateTrackerEvent(tracker EventReponse, status int, tracker_type int) {
 
 	var data Payload
 
@@ -571,8 +678,7 @@ func updateTrackerEvent(tracker EventReponse, status int) {
 	data.Attributes.Service = tracker.Attributes.Service
 	data.Attributes.Source = "slack"
 	data.Attributes.Status = status
-	data.Attributes.Type = 1
-	fmt.Println(tracker)
+	data.Attributes.Type = tracker_type
 	data.Attributes.Environment = environmentMap[tracker.Attributes.Environment]
 	data.Attributes.Impact = tracker.Attributes.Impact
 	data.Attributes.StartDate = tracker.Attributes.StartDate

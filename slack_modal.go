@@ -9,7 +9,7 @@ import (
 	"github.com/slack-go/slack"
 )
 
-func generateModalRequest(event EventReponse) slack.ModalViewRequest {
+func generateDeploymentModalRequest(event EventReponse) slack.ModalViewRequest {
 
 	pullRequest := inputUrl("pull_request", "Link Pull Request", event.Links.PullRequestLink, ":github:")
 	pullRequest.Optional = true
@@ -30,10 +30,10 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 	checkNotificationSupport := checkNotification(event.Attributes.Notifications, "support")
 
 	modalRequest := slack.ModalViewRequest{
-		Type:       slack.VTModal,
-		Title:      slack.NewTextBlockObject("plain_text", "Tracker", true, false),
-		Submit:     slack.NewTextBlockObject("plain_text", "Submit", true, false),
-		Close:      slack.NewTextBlockObject("plain_text", "Cancel", true, false),
+		Type:   slack.VTModal,
+		Title:  slack.NewTextBlockObject("plain_text", "Deployment", true, false),
+		Submit: slack.NewTextBlockObject("plain_text", "Submit", true, false),
+		Close:  slack.NewTextBlockObject("plain_text", "Cancel", true, false),
 		Blocks: slack.Blocks{
 			BlockSet: []slack.Block{
 				inputText("summary", "Summary", event.Title, "", false),
@@ -56,6 +56,44 @@ func generateModalRequest(event EventReponse) slack.ModalViewRequest {
 	return modalRequest
 }
 
+func generateDriftModalRequest(event EventReponse) slack.ModalViewRequest {
+
+	pullRequest := inputUrl("pull_request", "Link Pull Request", event.Links.PullRequestLink, ":github:")
+	pullRequest.Optional = true
+
+	ticket := inputUrl("ticket", "Link Ticket Issue", event.Links.Ticket, ":ticket:")
+	ticket.Optional = true
+
+	stakeholders := inputMultiUser("stakeholders", ":dart: Stakeholders", event.Attributes.StakeHolders)
+	stakeholders.Optional = true
+
+	changelog := inputText("changelog", "Description", event.Attributes.Message, "", true)
+	changelog.Optional = true
+
+	endDateTime := inputDatetime("enddatetime", "End Date", event.Attributes.EndDate)
+	endDateTime.Optional = true
+
+	modalRequest := slack.ModalViewRequest{
+		Type:   slack.VTModal,
+		Title:  slack.NewTextBlockObject("plain_text", "Drift", true, false),
+		Submit: slack.NewTextBlockObject("plain_text", "Submit", true, false),
+		Close:  slack.NewTextBlockObject("plain_text", "Cancel", true, false),
+		Blocks: slack.Blocks{
+			BlockSet: []slack.Block{
+				inputText("summary", "Summary", event.Title, "", false),
+				inputText("project", "Project", event.Attributes.Service, ":rocket:", false),
+				inputEnv(event.Attributes.Environment),
+				stakeholders,
+				ticket,
+				pullRequest,
+				changelog,
+			},
+		},
+	}
+
+	return modalRequest
+}
+
 func checkNotification(notification []string, name string) bool {
 	for i := range notification {
 		if strings.EqualFold(notification[i], name) {
@@ -65,7 +103,7 @@ func checkNotification(notification []string, name string) bool {
 	return false
 }
 
-func blockMessage(tracker tracker) []slack.Block {
+func blockDeploymentMessage(tracker tracker) []slack.Block {
 
 	var users []string
 
@@ -129,7 +167,7 @@ func blockMessage(tracker tracker) []slack.Block {
 		slack.NewActionBlock(
 			"actionblock",
 			slack.NewButtonBlockElement(
-				"action-edit",
+				"deployment-action-edit",
 				"click_me_123",
 				slack.NewTextBlockObject("plain_text", ":pencil: Edit", true, false),
 			),
@@ -156,6 +194,81 @@ func blockMessage(tracker tracker) []slack.Block {
 				slack.NewOptionBlockObject("cancelled", slack.NewTextBlockObject("plain_text", ":x: Cancelled", true, false), nil),
 				slack.NewOptionBlockObject("post_poned", slack.NewTextBlockObject("plain_text", ":hourglass_flowing_sand: PostPoned", true, false), nil),
 				slack.NewOptionBlockObject("done", slack.NewTextBlockObject("plain_text", ":white_check_mark: Done", true, false), nil),
+			),
+		),
+	}
+
+	return blocks
+}
+
+func blockDriftMessage(tracker tracker) []slack.Block {
+
+	var users []string
+
+	for i := range tracker.Stakeholders {
+		user := fmt.Sprintf("<@%s>", tracker.Stakeholders[i])
+		users = append(users, user)
+	}
+
+	var priorityEnv = map[string]string{"PROD": ":prod:", "PREP": ":prep:", "UAT": ":uat:", "DEV": ":development:"}
+
+	//To convert print datetime in location
+	t := time.Unix(time.Now().Unix(), 0).UTC()
+	location, err := time.LoadLocation(os.Getenv("TRACKER_TIMEZONE"))
+	if err != nil {
+		fmt.Println(err)
+	}
+	timeInUTCLocation := t.In(location)
+	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
+
+	summary := fmt.Sprintf(":twisted_rightwards_arrows: *%s* \n \n", tracker.Summary)
+	project := fmt.Sprintf(":rocket: *Project:* %s \n", tracker.Project)
+	date := fmt.Sprintf(":date: *Date:* %s %s \n", formattedTime, location.String())
+	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
+	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
+	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
+
+	var stackholder string
+	if len(users) > 0 {
+		stackholder = fmt.Sprintf(":dart: *Stakeholders:* %s \n", strings.Join(users, ", "))
+	}
+
+	var pullRequest string
+	if tracker.PullRequest != "" {
+		pullRequest = fmt.Sprintf(":github: *Pull Request:* %s \n", tracker.PullRequest)
+	}
+
+	var ticket string
+	if tracker.Ticket != "" {
+		ticket = fmt.Sprintf(":ticket: *Ticket Issue:* %s \n", tracker.Ticket)
+	}
+
+	message := summary + project + date + environment + owner + stackholder + ticket + pullRequest + description
+
+	// Define the modal blocks
+	blocks := []slack.Block{
+		slack.NewSectionBlock(
+			slack.NewTextBlockObject("mrkdwn", message, false, false),
+			nil,
+			nil,
+		),
+		slack.NewActionBlock(
+			"actionblock",
+			slack.NewButtonBlockElement(
+				"drift-action-edit",
+				"click_me_123",
+				slack.NewTextBlockObject("plain_text", ":pencil: Edit", true, false),
+			),
+		),
+		slack.NewActionBlock(
+			"status",
+			slack.NewOptionsSelectBlockElement(
+				"static_select",
+				slack.NewTextBlockObject("plain_text", "Select status", true, false),
+				"action",
+				slack.NewOptionBlockObject("drift_in_progress", slack.NewTextBlockObject("plain_text", ":warning: Drift InProgress", true, false), nil),
+				slack.NewOptionBlockObject("cancelled", slack.NewTextBlockObject("plain_text", ":x: Cancelled", true, false), nil),
+				slack.NewOptionBlockObject("close", slack.NewTextBlockObject("plain_text", ":white_check_mark: Close", true, false), nil),
 			),
 		),
 	}
