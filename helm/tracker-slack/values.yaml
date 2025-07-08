@@ -6,10 +6,12 @@ replicaCount: 1
 env:
   timezone: "Europe/Paris"
   tracker:
-    host: "tracker.local"
-    slack: tracker
-    slack_workspace: "workfspace"
-    cron_message: "30 7 * * *"
+    host: "http://tracker-dev.tracker.svc.cluster.local:8080"
+    channel_deployment: tracker
+    channel_drift: test
+    channel_incident: test
+    slack_workspace: "workspace-name"
+    cron_message: "5 7 * * *"
 
 secret: 
   create: true
