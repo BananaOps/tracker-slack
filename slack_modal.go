@@ -94,6 +94,42 @@ func generateDriftModalRequest(event EventReponse) slack.ModalViewRequest {
 	return modalRequest
 }
 
+func generateIncidentModalRequest(event EventReponse) slack.ModalViewRequest {
+
+	ticket := inputUrl("ticket", "Link Ticket Issue", event.Links.Ticket, ":ticket:")
+	ticket.Optional = true
+
+	stakeholders := inputMultiUser("stakeholders", ":dart: Stakeholders", event.Attributes.StakeHolders)
+	stakeholders.Optional = true
+
+	description := inputText("changelog", "Description", event.Attributes.Message, "", true)
+	description.Optional = false
+
+	endDateTime := inputDatetime("enddatetime", "End Date", event.Attributes.EndDate)
+	endDateTime.Optional = true
+
+	modalRequest := slack.ModalViewRequest{
+		Type:   slack.VTModal,
+		Title:  slack.NewTextBlockObject("plain_text", ":fire: Incident", true, false),
+		Submit: slack.NewTextBlockObject("plain_text", "Submit", true, false),
+		Close:  slack.NewTextBlockObject("plain_text", "Cancel", true, false),
+		Blocks: slack.Blocks{
+			BlockSet: []slack.Block{
+				inputText("summary", "Summary", event.Title, "", false),
+				inputText("project", "Project", event.Attributes.Service, ":rocket:", false),
+				inputEnv(event.Attributes.Environment),
+				inputPriority(event.Attributes.Priority),
+				stakeholders,
+				ticket,
+				description,
+			},
+		},
+	}
+
+	return modalRequest
+}
+
+
 func checkNotification(notification []string, name string) bool {
 	for i := range notification {
 		if strings.EqualFold(notification[i], name) {
@@ -276,6 +312,74 @@ func blockDriftMessage(tracker tracker) []slack.Block {
 	return blocks
 }
 
+func blockIncidentMessage(tracker tracker) []slack.Block {
+
+	var users []string
+
+	for i := range tracker.Stakeholders {
+		user := fmt.Sprintf("<@%s>", tracker.Stakeholders[i])
+		users = append(users, user)
+	}
+
+	var emojiEnv = map[string]string{"PROD": ":prod:", "PREP": ":prep:", "UAT": ":uat:", "DEV": ":development:"}
+
+
+	var emojiPriority = map[string]string{"P1": ":priority-highest:", "P2": ":priority-high:", "P3": ":priority-medium:", "P4": ":priority-low:"}
+
+	//To convert print datetime in location
+	t := time.Unix(time.Now().Unix(), 0).UTC()
+	location, err := time.LoadLocation(os.Getenv("TRACKER_TIMEZONE"))
+	if err != nil {
+		fmt.Println(err)
+	}
+	timeInUTCLocation := t.In(location)
+	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
+
+	summary := fmt.Sprintf(":fire: *%s* \n \n", tracker.Summary)
+	project := fmt.Sprintf(":rocket: *Project:* %s \n", tracker.Project)
+	date := fmt.Sprintf(":date: *Date:* %s %s \n", formattedTime, location.String())
+	environment := fmt.Sprintf("%s *Environment:* %s \n", emojiEnv[tracker.Environment], tracker.Environment)
+	priority := fmt.Sprintf("%s *Priority:* %s \n", emojiPriority[tracker.Priority], tracker.Priority)
+	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
+	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
+
+	var stackholder string
+	if len(users) > 0 {
+		stackholder = fmt.Sprintf(":dart: *Stakeholders:* %s \n", strings.Join(users, ", "))
+	}
+
+	var ticket string
+	if tracker.Ticket != "" {
+		ticket = fmt.Sprintf(":ticket: *Ticket Issue:* %s \n", tracker.Ticket)
+	}
+
+	message := summary + project + date + environment + priority + owner + stackholder + ticket + description
+
+	// Define the modal blocks
+	blocks := []slack.Block{
+		slack.NewSectionBlock(
+			slack.NewTextBlockObject("mrkdwn", message, false, false),
+			nil,
+			nil,
+		),
+		slack.NewActionBlock(
+			"actionblock",
+			slack.NewButtonBlockElement(
+				"incident-action-edit",
+				"click_me_123",
+				slack.NewTextBlockObject("plain_text", ":pencil: Edit", true, false),
+			),
+			slack.NewButtonBlockElement(
+				"incident-action-close",
+				"click_me_123",
+				slack.NewTextBlockObject("plain_text", ":white_check_mark: Close", true, false),
+			),
+		),
+	}
+
+	return blocks
+}
+
 func inputMultiUser(blockId string, BlockText string, values []string) *slack.InputBlock {
 
 	block := slack.NewOptionsMultiSelectBlockElement(
@@ -424,6 +528,39 @@ func inputEnv(value string) *slack.InputBlock {
 	return slack.NewInputBlock(
 		"environment",
 		slack.NewTextBlockObject("plain_text", ":prod: Environment", true, false),
+		nil,
+		block,
+	)
+}
+
+func inputPriority(value string) *slack.InputBlock {
+
+	block := slack.NewOptionsSelectBlockElement(
+		slack.OptTypeStatic,
+		slack.NewTextBlockObject("plain_text", "Select Priority", true, false),
+		"select_input-priority",
+		slack.NewOptionBlockObject("P1", slack.NewTextBlockObject("plain_text", "P1", true, false), nil),
+		slack.NewOptionBlockObject("P2", slack.NewTextBlockObject("plain_text", "P2", true, false), nil),
+		slack.NewOptionBlockObject("P3", slack.NewTextBlockObject("plain_text", "P3", true, false), nil),
+		slack.NewOptionBlockObject("P4", slack.NewTextBlockObject("plain_text", "P4", true, false), nil),
+	)
+
+	switch value {
+	case "P1":
+		block.InitialOption = slack.NewOptionBlockObject("P1", slack.NewTextBlockObject("plain_text", "P1", true, false), nil)
+	case "P2":
+		block.InitialOption = slack.NewOptionBlockObject("P2", slack.NewTextBlockObject("plain_text", "P2", true, false), nil)
+	case "P3":
+		block.InitialOption = slack.NewOptionBlockObject("P3", slack.NewTextBlockObject("plain_text", "P3", true, false), nil)
+	case "P4":
+		block.InitialOption = slack.NewOptionBlockObject("P4", slack.NewTextBlockObject("plain_text", "P4", true, false), nil)
+	default:
+		block.InitialOption = slack.NewOptionBlockObject("P1", slack.NewTextBlockObject("plain_text", "P1", true, false), nil)
+	}
+
+	return slack.NewInputBlock(
+		"priority",
+		slack.NewTextBlockObject("plain_text", ":priority-highest: Priority", true, false),
 		nil,
 		block,
 	)
