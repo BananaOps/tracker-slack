@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/BananaOps/tracker-slack/compare/v0.4.0...v0.5.0) (2025-07-08)
+
+
+### Features
+
+* add drift incident ([#26](https://github.com/BananaOps/tracker-slack/issues/26)) ([0f84114](https://github.com/BananaOps/tracker-slack/commit/0f84114915950a8180a53abaa6e7a199da76b32e))
+
+
+### Bug Fixes
+
+* correct docker image tag ([4102c43](https://github.com/BananaOps/tracker-slack/commit/4102c43f1eb3dbe3c588b2ac51147f94f148dfb2))
+
 ## [0.4.0](https://github.com/BananaOps/tracker-slack/compare/v0.3.0...v0.4.0) (2025-03-26)
 
 
