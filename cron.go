@@ -45,7 +45,7 @@ type TodayReponse struct {
 	TotalCount int                 `json:"totalcount"`
 }
 
-var channel string = os.Getenv("TRACKER_SLACK_CHANNEL")
+var channel string = os.Getenv("TRACKER_DEPLOYMENT_CHANNEL")
 var workspace string = os.Getenv("TRACKER_SLACK_WORKSPACE")
 
 func listEventToday() {
@@ -60,7 +60,7 @@ func listEventToday() {
 	message := formatSlackMessageByEnvironment(events)
 
 	channelID, slackTimestamp, err := api.PostMessage(
-		os.Getenv("TRACKER_SLACK_CHANNEL"),
+		os.Getenv("TRACKER_DEPLOYMENT_CHANNEL"),
 		slack.MsgOptionText(message, false),
 		slack.MsgOptionAsUser(true),        // false = Active Markdown (mrkdwn)
 		slack.MsgOptionDisableLinkUnfurl(), // Désactive la preview des liens
