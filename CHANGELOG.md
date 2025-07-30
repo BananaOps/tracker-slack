@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/BananaOps/tracker-slack/compare/v0.5.0...v0.5.1) (2025-07-30)
+
+
+### Bug Fixes
+
+* env channel for cron deployment today ([#28](https://github.com/BananaOps/tracker-slack/issues/28)) ([3a66a0d](https://github.com/BananaOps/tracker-slack/commit/3a66a0dce8f92914a555767a3637195f16be88a4))
+
 ## [0.5.0](https://github.com/BananaOps/tracker-slack/compare/v0.4.0...v0.5.0) (2025-07-08)
 
 
