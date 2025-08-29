@@ -130,6 +130,29 @@ func generateIncidentModalRequest(event EventReponse) slack.ModalViewRequest {
 }
 
 
+func generateRPAUsageModalRequest(event EventReponse) slack.ModalViewRequest {
+
+	description := inputText("changelog", "Description", event.Attributes.Message, "", true)
+	description.Optional = false
+
+	modalRequest := slack.ModalViewRequest{
+		Type:   slack.VTModal,
+		Title:  slack.NewTextBlockObject("plain_text", ":zap: RPA Usage", true, false),
+		Submit: slack.NewTextBlockObject("plain_text", "Submit", true, false),
+		Close:  slack.NewTextBlockObject("plain_text", "Cancel", true, false),
+		Blocks: slack.Blocks{
+			BlockSet: []slack.Block{
+				inputText("summary", "Summary", event.Title, "", false),
+				inputEnv(event.Attributes.Environment),
+				inputDatetime("datetime", "Start Date", event.Attributes.StartDate),
+				description,
+			},
+		},
+	}
+
+	return modalRequest
+}
+
 func checkNotification(notification []string, name string) bool {
 	for i := range notification {
 		if strings.EqualFold(notification[i], name) {
@@ -373,6 +396,61 @@ func blockIncidentMessage(tracker tracker) []slack.Block {
 				"incident-action-close",
 				"click_me_123",
 				slack.NewTextBlockObject("plain_text", ":white_check_mark: Close", true, false),
+			),
+		),
+	}
+
+	return blocks
+}
+
+func blockRPAUsageMessage(tracker tracker) []slack.Block {
+
+	var emojiEnv = map[string]string{"PROD": ":prod:", "PREP": ":prep:", "UAT": ":uat:", "DEV": ":development:"}
+
+	//To convert print datetime in location
+	t := time.Unix(time.Now().Unix(), 0).UTC()
+	location, err := time.LoadLocation(os.Getenv("TRACKER_TIMEZONE"))
+	if err != nil {
+		fmt.Println(err)
+	}
+	timeInUTCLocation := t.In(location)
+	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
+
+	summary := fmt.Sprintf(":zap: *RPA Usage: %s* \n \n", tracker.Summary)
+	date := fmt.Sprintf(":date: *Date:* %s %s \n", formattedTime, location.String())
+	environment := fmt.Sprintf("%s *Environment:* %s \n", emojiEnv[tracker.Environment], tracker.Environment)
+	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
+	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
+
+	message := summary + date + environment + owner+ description
+
+	// Define the modal blocks
+	blocks := []slack.Block{
+		slack.NewSectionBlock(
+			slack.NewTextBlockObject("mrkdwn", message, false, false),
+			nil,
+			nil,
+		),
+		slack.NewActionBlock(
+			"actionblock",
+			slack.NewButtonBlockElement(
+				"rpa-action-edit",
+				"click_me_123",
+				slack.NewTextBlockObject("plain_text", ":pencil: Edit", true, false),
+			),
+		),
+		slack.NewActionBlock(
+			"status",
+			slack.NewOptionsSelectBlockElement(
+				"static_select",
+				slack.NewTextBlockObject("plain_text", "Select status", true, false),
+				"action",
+				//slack.NewOptionBlockObject("edit", slack.NewTextBlockObject("plain_text", ":note: Edit", true, false), nil),
+				slack.NewOptionBlockObject("in_progress", slack.NewTextBlockObject("plain_text", ":loading: InProgress", true, false), nil),
+				slack.NewOptionBlockObject("pause", slack.NewTextBlockObject("plain_text", ":double_vertical_bar: Pause", true, false), nil),
+				slack.NewOptionBlockObject("cancelled", slack.NewTextBlockObject("plain_text", ":x: Cancelled", true, false), nil),
+				slack.NewOptionBlockObject("post_poned", slack.NewTextBlockObject("plain_text", ":hourglass_flowing_sand: PostPoned", true, false), nil),
+				slack.NewOptionBlockObject("done", slack.NewTextBlockObject("plain_text", ":white_check_mark: Done", true, false), nil),
 			),
 		),
 	}
