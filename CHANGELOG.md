@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/BananaOps/tracker-slack/compare/v0.5.1...v0.6.0) (2025-08-29)
+
+
+### Features
+
+* add slash command rpa usage ([#30](https://github.com/BananaOps/tracker-slack/issues/30)) ([ee89528](https://github.com/BananaOps/tracker-slack/commit/ee895287a3bfe9e6f3a9588e58b96e47f6f6c0ea))
+
 ## [0.5.1](https://github.com/BananaOps/tracker-slack/compare/v0.5.0...v0.5.1) (2025-07-30)
 
 
