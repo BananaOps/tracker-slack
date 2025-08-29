@@ -96,6 +96,8 @@ func handleCommand(w http.ResponseWriter, r *http.Request) {
 		handleIncidentCommand(w, s)
 	case "/drift":
 		handleDriftCommand(w, s)
+	case "/rpa_usage":
+		handleRPAUsageCommand(w, s)
 	default:
 		http.Error(w, "Unknown command", http.StatusBadRequest)
 	}
@@ -130,6 +132,18 @@ func handleDriftCommand(w http.ResponseWriter, s slack.SlashCommand) {
 	api := slack.New(botToken)
 	view := generateDriftModalRequest(EventReponse{})
 	view.CallbackID = "drift-create"
+	_, err := api.OpenView(s.TriggerID, view)
+	if err != nil {
+		fmt.Printf("Error opening view: %s", err)
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleDriftCommand handles the /drift command
+func handleRPAUsageCommand(w http.ResponseWriter, s slack.SlashCommand) {
+	api := slack.New(botToken)
+	view := generateRPAUsageModalRequest(EventReponse{})
+	view.CallbackID = "rpa-create"
 	_, err := api.OpenView(s.TriggerID, view)
 	if err != nil {
 		fmt.Printf("Error opening view: %s", err)
@@ -183,6 +197,10 @@ func handleViewSubmission(w http.ResponseWriter, i slack.InteractionCallback) {
 		handleCreateIncidentModal(w, i)
 	case "incident-edit":
 		handleEditIncidentModal(w, i)
+	case "rpa-create":
+		handleCreateRPAUsageModal(w, i)
+	case "rpa-edit":
+		handleEditRPAUsageModal(w, i)
 
 	default:
 		fmt.Println("Unknown modal callback ID:", i.View.CallbackID)
@@ -220,6 +238,7 @@ func handleEditDeploymentModal(w http.ResponseWriter, i slack.InteractionCallbac
 
 	// Post tracker event
 	tracker.SlackId = string(messageTimestamp)
+	tracker.Type = 1 // Assuming type 1 for deployment
 	go editTrackerEvent(tracker)
 
 	fmt.Println("Edit modal processed:", tracker)
@@ -291,6 +310,43 @@ func handleEditIncidentModal(w http.ResponseWriter, i slack.InteractionCallback)
 	// Post tracker event
 	tracker.SlackId = string(messageTimestamp)
 	tracker.Type = 4 // Assuming type 4 for incidents
+	go editTrackerEvent(tracker)
+
+	fmt.Println("Edit modal processed:", tracker)
+}
+
+
+// handleEditModal handles the edit modal
+func handleEditRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallback) {
+	api := slack.New(botToken)
+
+	tracker := extractTrackerFromModal(i)
+	// Specific logic for the "edit" modal
+	event := getTrackerEvent(messageTimestamp)
+	tracker.Owner = event.Event.Attributes.Owner
+	blocks := blockRPAUsageMessage(tracker)
+
+	channelID, slackTimestamp, _, err := api.UpdateMessage(messageChannel,
+		messageTimestamp,
+		slack.MsgOptionBlocks(blocks...),
+	)
+	if err != nil {
+		fmt.Printf("Error updating message: %s\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	_, _, err = api.PostMessage(
+		messageChannel,
+		slack.MsgOptionText(fmt.Sprintf(":pencil: Edited by <@%s>", i.User.ID), false),
+		slack.MsgOptionTS(messageTimestamp),
+	)
+	if err != nil {
+		fmt.Printf("Error posting message to thread: %v", err)
+	}
+	fmt.Printf("Message successfully updated to channel %s at %s \n", channelID, slackTimestamp)
+
+	// Post tracker event
+	tracker.SlackId = string(messageTimestamp)
+	tracker.Type = 2 // Assuming type 2 for operation
 	go editTrackerEvent(tracker)
 
 	fmt.Println("Edit modal processed:", tracker)
@@ -370,6 +426,31 @@ func handleCreateIncidentModal(w http.ResponseWriter, i slack.InteractionCallbac
 	fmt.Println("Create modal processed:", tracker)
 }
 
+// handleCreateModal handles the create modal
+func handleCreateRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallback) {
+	api := slack.New(botToken)
+
+	tracker := extractTrackerFromModal(i)
+
+	blocks := blockRPAUsageMessage(tracker)
+
+	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_DEPLOYMENT_CHANNEL"),
+		slack.MsgOptionBlocks(blocks...),
+	)
+	if err != nil {
+		fmt.Printf("Error posting message: %s\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	fmt.Printf("Message successfully sent to channel %s at %s \n", channelID, slackTimestamp)
+	// Post tracker event
+	tracker.SlackId = string(slackTimestamp)
+	tracker.Type = 2
+	tracker.Datetime = time.Now().Unix()
+	go postTrackerEvent(tracker)
+	// Add logic here to process the create modal
+	fmt.Println("Create modal processed:", tracker)
+}
+
 // extractTrackerFromModal extracts data from the modal to create a tracker
 func extractTrackerFromModal(i slack.InteractionCallback) tracker {
 	values := i.View.State.Values
@@ -429,6 +510,19 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 			api := slack.New(botToken)
 			view := generateIncidentModalRequest(event.Event)
 			view.CallbackID = "incident-edit"
+			_, err := api.OpenView(callback.TriggerID, view)
+			if err != nil {
+				fmt.Printf("Error Open view: %s", err)
+			}
+			w.WriteHeader(http.StatusOK)
+
+		case "rpa-action-edit":
+			messageTimestamp = callback.Message.Timestamp
+			messageChannel = callback.Channel.ID
+			event := getTrackerEvent(messageTimestamp)
+			api := slack.New(botToken)
+			view := generateRPAUsageModalRequest(event.Event)
+			view.CallbackID = "rpa-edit"
 			_, err := api.OpenView(callback.TriggerID, view)
 			if err != nil {
 				fmt.Printf("Error Open view: %s", err)
@@ -703,7 +797,7 @@ func editTrackerEvent(tracker tracker) {
 	data.Attributes.Service = tracker.Project
 	data.Attributes.Source = "slack"
 	data.Attributes.Status = 7
-	data.Attributes.Type = 1
+	data.Attributes.Type = tracker.Type
 	data.Attributes.Environment = environment[tracker.Environment]
 	if tracker.Impact == "Yes" {
 		data.Attributes.Impact = true
