@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -640,7 +641,7 @@ func inputProject(value string, actionID string, label string) (*slack.InputBloc
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(projects)
+	sort.Strings(projects)
 
 	// Create options for the dropdown
 	var options []*slack.OptionBlockObject
@@ -660,14 +661,16 @@ func inputProject(value string, actionID string, label string) (*slack.InputBloc
 		actionID,
 		options...,
 	)
-	fmt.Println(value)
 
-	/*
+	if value == "" {
+		value = projects[0]
+	}
+
 	selectElement.InitialOption = slack.NewOptionBlockObject(
 		value,
 		slack.NewTextBlockObject("plain_text", value, true, false),
 		nil,
-	)*/
+	)
 
 	// Wrap the select element in an input block
 	inputBlock := slack.NewInputBlock(

@@ -456,7 +456,7 @@ func extractTrackerFromModal(i slack.InteractionCallback) tracker {
 	values := i.View.State.Values
 	return tracker{
 		Summary:      values["summary"]["text_input-action"].Value,
-		Project:      values["project"]["text_input-action"].Value,
+		Project:      values["project"]["project"].SelectedOption.Value,
 		Environment:  values["environment"]["select_input-environment"].SelectedOption.Value,
 		Impact:       values["impact"]["select_input-impact"].SelectedOption.Value,
 		Priority:     values["priority"]["select_input-priority"].SelectedOption.Value,
