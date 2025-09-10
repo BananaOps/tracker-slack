@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -29,6 +32,12 @@ func generateDeploymentModalRequest(event EventReponse) slack.ModalViewRequest {
 	checkNotificationRelease := checkNotification(event.Attributes.Notifications, "release")
 	checkNotificationSupport := checkNotification(event.Attributes.Notifications, "support")
 
+	project, err := inputProject(event.Attributes.Service, "project", "Project")
+	if err != nil {
+		fmt.Println("Error fetching projects:", err)
+		project = nil
+	}
+
 	modalRequest := slack.ModalViewRequest{
 		Type:   slack.VTModal,
 		Title:  slack.NewTextBlockObject("plain_text", "Deployment", true, false),
@@ -37,7 +46,8 @@ func generateDeploymentModalRequest(event EventReponse) slack.ModalViewRequest {
 		Blocks: slack.Blocks{
 			BlockSet: []slack.Block{
 				inputText("summary", "Summary", event.Title, "", false),
-				inputText("project", "Project", event.Attributes.Service, ":rocket:", false),
+				project,
+				//inputText("project", "Project", event.Attributes.Service, ":rocket:", false),
 				inputEnv(event.Attributes.Environment),
 				inputImpact(event.Attributes.Impact),
 				inputReleaseTeam(checkNotificationRelease),
@@ -128,7 +138,6 @@ func generateIncidentModalRequest(event EventReponse) slack.ModalViewRequest {
 
 	return modalRequest
 }
-
 
 func generateRPAUsageModalRequest(event EventReponse) slack.ModalViewRequest {
 
@@ -346,7 +355,6 @@ func blockIncidentMessage(tracker tracker) []slack.Block {
 
 	var emojiEnv = map[string]string{"PROD": ":prod:", "PREP": ":prep:", "UAT": ":uat:", "DEV": ":development:"}
 
-
 	var emojiPriority = map[string]string{"P1": ":priority-highest:", "P2": ":priority-high:", "P3": ":priority-medium:", "P4": ":priority-low:"}
 
 	//To convert print datetime in location
@@ -422,7 +430,7 @@ func blockRPAUsageMessage(tracker tracker) []slack.Block {
 	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
 	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
 
-	message := summary + date + environment + owner+ description
+	message := summary + date + environment + owner + description
 
 	// Define the modal blocks
 	blocks := []slack.Block{
@@ -576,6 +584,100 @@ func inputSupportTeam(value bool) *slack.InputBlock {
 		nil,
 		block,
 	)
+}
+
+type Catalogs struct {
+	Catalog []Catalog `json:"catalogs"`
+}
+
+type Catalog struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+// fetchProjects fetches the list of projects from the tracker API
+func fetchProjects() ([]string, error) {
+	// Make an HTTP GET request to the API
+	resp, err := http.Get(os.Getenv("TRACKER_HOST") + "/api/v1alpha1/catalogs/list")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch projects: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check for non-200 status codes
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned status code %d", resp.StatusCode)
+	}
+
+	// Parse the response body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read API response: %w", err)
+	}
+
+	var catalogs Catalogs
+	err = json.Unmarshal(body, &catalogs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse API response: %w", err)
+	}
+
+	var projectList []string
+
+	for i := range catalogs.Catalog {
+		if catalogs.Catalog[i].Type == "project" {
+			projectList = append(projectList, catalogs.Catalog[i].Name)
+		}
+	}
+
+	return projectList, nil
+}
+
+// inputProject creates a dropdown list for a modal using the list of projects from the API
+func inputProject(value string, actionID string, label string) (*slack.InputBlock, error) {
+	// Fetch the list of projects from the API
+	fmt.Println("Fetching projects from API...")
+	projects, err := fetchProjects()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(projects)
+
+	// Create options for the dropdown
+	var options []*slack.OptionBlockObject
+	for _, project := range projects {
+		option := slack.NewOptionBlockObject(
+			project,
+			slack.NewTextBlockObject("plain_text", project, false, false),
+			nil,
+		)
+		options = append(options, option)
+	}
+
+	// Create a static select element for the dropdown
+	selectElement := slack.NewOptionsSelectBlockElement(
+		slack.OptTypeStatic,
+		slack.NewTextBlockObject("plain_text", "Select a project", true, false),
+		actionID,
+		options...,
+	)
+	fmt.Println(value)
+
+	/*
+	selectElement.InitialOption = slack.NewOptionBlockObject(
+		value,
+		slack.NewTextBlockObject("plain_text", value, true, false),
+		nil,
+	)*/
+
+	// Wrap the select element in an input block
+	inputBlock := slack.NewInputBlock(
+		actionID,
+		slack.NewTextBlockObject("plain_text", label, true, false),
+		nil,
+		selectElement,
+	)
+
+	return inputBlock, nil
 }
 
 func inputEnv(value string) *slack.InputBlock {
