@@ -6,7 +6,7 @@ replicaCount: 1
 env:
   timezone: "Europe/Paris"
   tracker:
-    host: "http://tracker-dev.tracker.svc.cluster.local:8080"
+    host: "http://tracker.tracker.svc.cluster.local:8080"
     channel_deployment: tracker
     channel_drift: test
     channel_incident: test
