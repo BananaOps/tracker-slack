@@ -315,7 +315,6 @@ func handleEditIncidentModal(w http.ResponseWriter, i slack.InteractionCallback)
 	fmt.Println("Edit modal processed:", tracker)
 }
 
-
 // handleEditModal handles the edit modal
 func handleEditRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallback) {
 	api := slack.New(botToken)
@@ -454,9 +453,22 @@ func handleCreateRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallbac
 // extractTrackerFromModal extracts data from the modal to create a tracker
 func extractTrackerFromModal(i slack.InteractionCallback) tracker {
 	values := i.View.State.Values
+
+	// Extraire le projet - essayer d'abord le dropdown, puis le champ texte
+	var project string
+	if projectValues, exists := values["project"]; exists {
+		// Essayer le dropdown (action ID = "project")
+		if selectValue, exists := projectValues["project"]; exists && selectValue.SelectedOption.Value != "" {
+			project = selectValue.SelectedOption.Value
+		} else if textValue, exists := projectValues["text_input-action"]; exists {
+			// Fallback vers le champ texte
+			project = textValue.Value
+		}
+	}
+
 	return tracker{
 		Summary:      values["summary"]["text_input-action"].Value,
-		Project:      values["project"]["text_input-action"].Value,
+		Project:      project,
 		Environment:  values["environment"]["select_input-environment"].SelectedOption.Value,
 		Impact:       values["impact"]["select_input-impact"].SelectedOption.Value,
 		Priority:     values["priority"]["select_input-priority"].SelectedOption.Value,
