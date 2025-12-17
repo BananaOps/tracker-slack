@@ -176,14 +176,14 @@ func createSlackMessageURL(teamDomain, channelId, slackId string) string {
 func getEnvironmentEmoji(environment string) (string, string) {
 	switch environment {
 	case "production":
-		return ":prod:", "PROD"
+		return "🔴", "PROD"
 	case "preproduction":
-		return ":prep:", "PREPROD"
+		return "🟡", "PREPROD"
 	case "UAT":
-		return ":uat:", "UAT"
+		return "🔵", "UAT"
 	case "development":
-		return ":dev:", "DEV"
+		return "🟢", "DEV"
 	default:
-		return ":question:", "UNKOWN"
+		return "❓", "UNKOWN"
 	}
 }

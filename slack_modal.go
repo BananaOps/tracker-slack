@@ -17,7 +17,7 @@ func generateDeploymentModalRequest(event EventReponse) slack.ModalViewRequest {
 	ticket := inputUrl("ticket", "Link Ticket Issue", event.Links.Ticket, ":ticket:")
 	ticket.Optional = true
 
-	stakeholders := inputMultiUser("stakeholders", ":dart: Stakeholders", event.Attributes.StakeHolders)
+	stakeholders := inputMultiUser("stakeholders", "🎯 Stakeholders", event.Attributes.StakeHolders)
 	stakeholders.Optional = true
 
 	changelog := inputText("changelog", "Description", event.Attributes.Message, "", true)
@@ -29,6 +29,14 @@ func generateDeploymentModalRequest(event EventReponse) slack.ModalViewRequest {
 	checkNotificationRelease := checkNotification(event.Attributes.Notifications, "release")
 	checkNotificationSupport := checkNotification(event.Attributes.Notifications, "support")
 
+	// Créer le dropdown des projets
+	projectDropdown, err := createProjectDropdown("project", "🚀 Project", event.Attributes.Service)
+	if err != nil {
+		fmt.Printf("Error creating project dropdown: %v\n", err)
+		// Fallback vers un champ texte
+		projectDropdown = createProjectTextInput("project", "🚀 Project", event.Attributes.Service)
+	}
+
 	modalRequest := slack.ModalViewRequest{
 		Type:   slack.VTModal,
 		Title:  slack.NewTextBlockObject("plain_text", "Deployment", true, false),
@@ -37,7 +45,7 @@ func generateDeploymentModalRequest(event EventReponse) slack.ModalViewRequest {
 		Blocks: slack.Blocks{
 			BlockSet: []slack.Block{
 				inputText("summary", "Summary", event.Title, "", false),
-				inputText("project", "Project", event.Attributes.Service, ":rocket:", false),
+				projectDropdown,
 				inputEnv(event.Attributes.Environment),
 				inputImpact(event.Attributes.Impact),
 				inputReleaseTeam(checkNotificationRelease),
@@ -64,7 +72,7 @@ func generateDriftModalRequest(event EventReponse) slack.ModalViewRequest {
 	ticket := inputUrl("ticket", "Link Ticket Issue", event.Links.Ticket, ":ticket:")
 	ticket.Optional = true
 
-	stakeholders := inputMultiUser("stakeholders", ":dart: Stakeholders", event.Attributes.StakeHolders)
+	stakeholders := inputMultiUser("stakeholders", "🎯 Stakeholders", event.Attributes.StakeHolders)
 	stakeholders.Optional = true
 
 	changelog := inputText("changelog", "Description", event.Attributes.Message, "", true)
@@ -72,6 +80,14 @@ func generateDriftModalRequest(event EventReponse) slack.ModalViewRequest {
 
 	endDateTime := inputDatetime("enddatetime", "End Date", event.Attributes.EndDate)
 	endDateTime.Optional = true
+
+	// Créer le dropdown des projets
+	projectDropdown, err := createProjectDropdown("project", "🚀 Project", event.Attributes.Service)
+	if err != nil {
+		fmt.Printf("Error creating project dropdown: %v\n", err)
+		// Fallback vers un champ texte
+		projectDropdown = createProjectTextInput("project", "🚀 Project", event.Attributes.Service)
+	}
 
 	modalRequest := slack.ModalViewRequest{
 		Type:   slack.VTModal,
@@ -81,7 +97,7 @@ func generateDriftModalRequest(event EventReponse) slack.ModalViewRequest {
 		Blocks: slack.Blocks{
 			BlockSet: []slack.Block{
 				inputText("summary", "Summary", event.Title, "", false),
-				inputText("project", "Project", event.Attributes.Service, ":rocket:", false),
+				projectDropdown,
 				inputEnv(event.Attributes.Environment),
 				stakeholders,
 				ticket,
@@ -99,7 +115,7 @@ func generateIncidentModalRequest(event EventReponse) slack.ModalViewRequest {
 	ticket := inputUrl("ticket", "Link Ticket Issue", event.Links.Ticket, ":ticket:")
 	ticket.Optional = true
 
-	stakeholders := inputMultiUser("stakeholders", ":dart: Stakeholders", event.Attributes.StakeHolders)
+	stakeholders := inputMultiUser("stakeholders", "🎯 Stakeholders", event.Attributes.StakeHolders)
 	stakeholders.Optional = true
 
 	description := inputText("changelog", "Description", event.Attributes.Message, "", true)
@@ -107,6 +123,14 @@ func generateIncidentModalRequest(event EventReponse) slack.ModalViewRequest {
 
 	endDateTime := inputDatetime("enddatetime", "End Date", event.Attributes.EndDate)
 	endDateTime.Optional = true
+
+	// Créer le dropdown des projets
+	projectDropdown, err := createProjectDropdown("project", "🚀 Project", event.Attributes.Service)
+	if err != nil {
+		fmt.Printf("Error creating project dropdown: %v\n", err)
+		// Fallback vers un champ texte
+		projectDropdown = createProjectTextInput("project", "🚀 Project", event.Attributes.Service)
+	}
 
 	modalRequest := slack.ModalViewRequest{
 		Type:   slack.VTModal,
@@ -116,7 +140,7 @@ func generateIncidentModalRequest(event EventReponse) slack.ModalViewRequest {
 		Blocks: slack.Blocks{
 			BlockSet: []slack.Block{
 				inputText("summary", "Summary", event.Title, "", false),
-				inputText("project", "Project", event.Attributes.Service, ":rocket:", false),
+				projectDropdown,
 				inputEnv(event.Attributes.Environment),
 				inputPriority(event.Attributes.Priority),
 				stakeholders,
@@ -128,7 +152,6 @@ func generateIncidentModalRequest(event EventReponse) slack.ModalViewRequest {
 
 	return modalRequest
 }
-
 
 func generateRPAUsageModalRequest(event EventReponse) slack.ModalViewRequest {
 
@@ -171,7 +194,7 @@ func blockDeploymentMessage(tracker tracker) []slack.Block {
 		users = append(users, user)
 	}
 
-	var priorityEnv = map[string]string{"PROD": ":prod:", "PREP": ":prep:", "UAT": ":uat:", "DEV": ":development:"}
+	var priorityEnv = map[string]string{"PROD": "🔴", "PREP": "🟡", "UAT": "🔵", "DEV": "🟢"}
 
 	//To convert print datetime in location
 	t := time.Unix(tracker.Datetime, 0).UTC()
@@ -184,17 +207,17 @@ func blockDeploymentMessage(tracker tracker) []slack.Block {
 
 	summary := fmt.Sprintf("*%s* \n \n", tracker.Summary)
 	project := fmt.Sprintf(":rocket: *Project:* %s \n", tracker.Project)
-	date := fmt.Sprintf(":date: *Date:* %s %s \n", formattedTime, location.String())
+	date := fmt.Sprintf("📅 *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
 	impact := fmt.Sprintf(":boom: *Impact:* %s \n", tracker.Impact)
-	releaseTeam := ":slack_notification: *Notification Release:* @release-team \n"
-	supportTeam := ":slack_notification: *Notification Support:* @team-support \n"
+	releaseTeam := ":bell: *Notification Release:* @release-team \n"
+	supportTeam := ":bell: *Notification Support:* @team-support \n"
 	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
 	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
 
 	var stackholder string
 	if len(users) > 0 {
-		stackholder = fmt.Sprintf(":dart: *Stakeholders:* %s \n", strings.Join(users, ", "))
+		stackholder = fmt.Sprintf("🎯 *Stakeholders:* %s \n", strings.Join(users, ", "))
 	}
 
 	var pullRequest string
@@ -269,7 +292,7 @@ func blockDriftMessage(tracker tracker) []slack.Block {
 		users = append(users, user)
 	}
 
-	var priorityEnv = map[string]string{"PROD": ":prod:", "PREP": ":prep:", "UAT": ":uat:", "DEV": ":development:"}
+	var priorityEnv = map[string]string{"PROD": "🔴", "PREP": "🟡", "UAT": "🔵", "DEV": "🟢"}
 
 	//To convert print datetime in location
 	t := time.Unix(time.Now().Unix(), 0).UTC()
@@ -282,14 +305,14 @@ func blockDriftMessage(tracker tracker) []slack.Block {
 
 	summary := fmt.Sprintf(":twisted_rightwards_arrows: *%s* \n \n", tracker.Summary)
 	project := fmt.Sprintf(":rocket: *Project:* %s \n", tracker.Project)
-	date := fmt.Sprintf(":date: *Date:* %s %s \n", formattedTime, location.String())
+	date := fmt.Sprintf("📅 *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
 	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
 	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
 
 	var stackholder string
 	if len(users) > 0 {
-		stackholder = fmt.Sprintf(":dart: *Stakeholders:* %s \n", strings.Join(users, ", "))
+		stackholder = fmt.Sprintf("🎯 *Stakeholders:* %s \n", strings.Join(users, ", "))
 	}
 
 	var pullRequest string
@@ -344,10 +367,9 @@ func blockIncidentMessage(tracker tracker) []slack.Block {
 		users = append(users, user)
 	}
 
-	var emojiEnv = map[string]string{"PROD": ":prod:", "PREP": ":prep:", "UAT": ":uat:", "DEV": ":development:"}
+	var emojiEnv = map[string]string{"PROD": "🔴", "PREP": "🟡", "UAT": "🔵", "DEV": "🟢"}
 
-
-	var emojiPriority = map[string]string{"P1": ":priority-highest:", "P2": ":priority-high:", "P3": ":priority-medium:", "P4": ":priority-low:"}
+	var emojiPriority = map[string]string{"P1": "🔥", "P2": "⚠️", "P3": "📋", "P4": "📝"}
 
 	//To convert print datetime in location
 	t := time.Unix(time.Now().Unix(), 0).UTC()
@@ -360,7 +382,7 @@ func blockIncidentMessage(tracker tracker) []slack.Block {
 
 	summary := fmt.Sprintf(":fire: *%s* \n \n", tracker.Summary)
 	project := fmt.Sprintf(":rocket: *Project:* %s \n", tracker.Project)
-	date := fmt.Sprintf(":date: *Date:* %s %s \n", formattedTime, location.String())
+	date := fmt.Sprintf("📅 *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", emojiEnv[tracker.Environment], tracker.Environment)
 	priority := fmt.Sprintf("%s *Priority:* %s \n", emojiPriority[tracker.Priority], tracker.Priority)
 	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
@@ -368,7 +390,7 @@ func blockIncidentMessage(tracker tracker) []slack.Block {
 
 	var stackholder string
 	if len(users) > 0 {
-		stackholder = fmt.Sprintf(":dart: *Stakeholders:* %s \n", strings.Join(users, ", "))
+		stackholder = fmt.Sprintf("🎯 *Stakeholders:* %s \n", strings.Join(users, ", "))
 	}
 
 	var ticket string
@@ -405,7 +427,7 @@ func blockIncidentMessage(tracker tracker) []slack.Block {
 
 func blockRPAUsageMessage(tracker tracker) []slack.Block {
 
-	var emojiEnv = map[string]string{"PROD": ":prod:", "PREP": ":prep:", "UAT": ":uat:", "DEV": ":development:"}
+	var emojiEnv = map[string]string{"PROD": "🔴", "PREP": "🟡", "UAT": "🔵", "DEV": "🟢"}
 
 	//To convert print datetime in location
 	t := time.Unix(time.Now().Unix(), 0).UTC()
@@ -417,12 +439,12 @@ func blockRPAUsageMessage(tracker tracker) []slack.Block {
 	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
 
 	summary := fmt.Sprintf(":zap: *RPA Usage: %s* \n \n", tracker.Summary)
-	date := fmt.Sprintf(":date: *Date:* %s %s \n", formattedTime, location.String())
+	date := fmt.Sprintf("📅 *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", emojiEnv[tracker.Environment], tracker.Environment)
 	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
 	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
 
-	message := summary + date + environment + owner+ description
+	message := summary + date + environment + owner + description
 
 	// Define the modal blocks
 	blocks := []slack.Block{
@@ -605,7 +627,7 @@ func inputEnv(value string) *slack.InputBlock {
 
 	return slack.NewInputBlock(
 		"environment",
-		slack.NewTextBlockObject("plain_text", ":prod: Environment", true, false),
+		slack.NewTextBlockObject("plain_text", "🌍 Environment", true, false),
 		nil,
 		block,
 	)
@@ -638,7 +660,7 @@ func inputPriority(value string) *slack.InputBlock {
 
 	return slack.NewInputBlock(
 		"priority",
-		slack.NewTextBlockObject("plain_text", ":priority-highest: Priority", true, false),
+		slack.NewTextBlockObject("plain_text", "⚡ Priority", true, false),
 		nil,
 		block,
 	)
@@ -668,7 +690,7 @@ func inputDatetime(blockId string, blockText string, value string) *slack.InputB
 	}
 	return slack.NewInputBlock(
 		blockId,
-		slack.NewTextBlockObject("plain_text", fmt.Sprintf(":date: %s", blockText), false, false),
+		slack.NewTextBlockObject("plain_text", fmt.Sprintf("📅 %s", blockText), false, false),
 		nil,
 		block,
 	)
