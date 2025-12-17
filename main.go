@@ -102,7 +102,9 @@ func newHTTPHandler() http.Handler {
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ok"}`))
+	if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+		log.Printf("Error writing health response: %v", err)
+	}
 }
 
 // handleCacheStatus endpoint pour vérifier le statut du cache
@@ -112,6 +114,14 @@ func handleCacheStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	response, _ := json.Marshal(stats)
-	w.Write(response)
+	response, err := json.Marshal(stats)
+	if err != nil {
+		log.Printf("Error marshaling cache stats: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := w.Write(response); err != nil {
+		log.Printf("Error writing cache status response: %v", err)
+	}
 }
