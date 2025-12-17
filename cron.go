@@ -192,7 +192,7 @@ func getEnvironmentEmoji(environment string) (string, string) {
 // getStatusIcon retourne l'icône correspondant au statut d'un événement
 func getStatusIcon(status string) string {
 	switch strings.ToLower(status) {
-	case "failed", "fail":
+	case "failed", "fail", "failure":
 		return "❌"
 	case "cancelled", "canceled", "cancel":
 		return "❌"
