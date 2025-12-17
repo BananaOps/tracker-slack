@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.1](https://github.com/BananaOps/tracker-slack/compare/v0.6.0...v0.6.1) (2025-12-17)
+
+
+### Bug Fixes
+
+* add project dropdown list ([#35](https://github.com/BananaOps/tracker-slack/issues/35)) ([d908b1c](https://github.com/BananaOps/tracker-slack/commit/d908b1c924aec1da2cd0b9a47160986aea407e36))
+* correct values ([#32](https://github.com/BananaOps/tracker-slack/issues/32)) ([00b0a4c](https://github.com/BananaOps/tracker-slack/commit/00b0a4cddb32104444e01f8c05f64950f7d5bff9))
+
 ## [0.6.0](https://github.com/BananaOps/tracker-slack/compare/v0.5.1...v0.6.0) (2025-08-29)
 
 
