@@ -98,6 +98,8 @@ func handleCommand(w http.ResponseWriter, r *http.Request) {
 		handleDriftCommand(w, s)
 	case "/rpa_usage":
 		handleRPAUsageCommand(w, s)
+	case "/today":
+		handleTodayCommand(w, s)
 	default:
 		http.Error(w, "Unknown command", http.StatusBadRequest)
 	}
@@ -139,7 +141,7 @@ func handleDriftCommand(w http.ResponseWriter, s slack.SlashCommand) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// handleDriftCommand handles the /drift command
+// handleRPAUsageCommand handles the /rpa_usage command
 func handleRPAUsageCommand(w http.ResponseWriter, s slack.SlashCommand) {
 	api := slack.New(botToken)
 	view := generateRPAUsageModalRequest(EventReponse{})
@@ -149,6 +151,63 @@ func handleRPAUsageCommand(w http.ResponseWriter, s slack.SlashCommand) {
 		fmt.Printf("Error opening view: %s", err)
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// handleTodayCommand handles the /today command
+func handleTodayCommand(w http.ResponseWriter, s slack.SlashCommand) {
+	fmt.Printf("Handling /today command for user %s in channel %s\n", s.UserName, s.ChannelName)
+
+	// Récupérer les événements du jour
+	events, err := fetchEvents()
+	if err != nil {
+		fmt.Printf("Error fetching today's events: %v\n", err)
+		// Répondre avec un message d'erreur
+		response := map[string]interface{}{
+			"response_type": "ephemeral", // Visible seulement par l'utilisateur
+			"text":          fmt.Sprintf("❌ Erreur lors de la récupération des événements : %v", err),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			fmt.Printf("Error encoding error response: %v\n", err)
+		}
+		return
+	}
+
+	// Formater le message comme le cron daily
+	message := formatSlackMessageByEnvironment(events)
+
+	// Répondre avec le message formaté
+	response := map[string]interface{}{
+		"response_type": "in_channel", // Visible par tous dans le canal
+		"text":          message,
+		"mrkdwn":        true, // Activer le formatage Markdown
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		fmt.Printf("Error encoding today response: %v\n", err)
+	}
+
+	fmt.Printf("/today command processed successfully for user %s\n", s.UserName)
+}
+
+// sendSlackResponse envoie une réponse formatée à Slack
+func sendSlackResponse(w http.ResponseWriter, text string, responseType string) {
+	response := map[string]interface{}{
+		"response_type": responseType, // "ephemeral" ou "in_channel"
+		"text":          text,
+		"mrkdwn":        true, // Activer le formatage Markdown
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		fmt.Printf("Error encoding Slack response: %v\n", err)
+	}
 }
 
 func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
