@@ -300,6 +300,11 @@ func handleEditDeploymentModal(w http.ResponseWriter, i slack.InteractionCallbac
 	tracker.Type = 1 // Assuming type 1 for deployment
 	go editTrackerEvent(tracker)
 
+	// Post changelog entry to Tracker
+	if event := getTrackerEvent(messageTimestamp); event.Event.Metadata.Id != "" {
+		go postTrackerChangeLog(event.Event, "edit", tracker.Description, i.User.Name)
+	}
+
 	fmt.Println("Edit modal processed:", tracker)
 }
 
@@ -334,6 +339,11 @@ func handleEditDriftModal(w http.ResponseWriter, i slack.InteractionCallback) {
 	// Post tracker event
 	tracker.SlackId = string(messageTimestamp)
 	go editTrackerEvent(tracker)
+
+	// Post changelog entry to Tracker
+	if event := getTrackerEvent(messageTimestamp); event.Event.Metadata.Id != "" {
+		go postTrackerChangeLog(event.Event, "edit", tracker.Description, i.User.Name)
+	}
 
 	fmt.Println("Edit modal processed:", tracker)
 }
@@ -371,6 +381,11 @@ func handleEditIncidentModal(w http.ResponseWriter, i slack.InteractionCallback)
 	tracker.Type = 4 // Assuming type 4 for incidents
 	go editTrackerEvent(tracker)
 
+	// Post changelog entry to Tracker
+	if event := getTrackerEvent(messageTimestamp); event.Event.Metadata.Id != "" {
+		go postTrackerChangeLog(event.Event, "edit", tracker.Description, i.User.Name)
+	}
+
 	fmt.Println("Edit modal processed:", tracker)
 }
 
@@ -406,6 +421,11 @@ func handleEditRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallback)
 	tracker.SlackId = string(messageTimestamp)
 	tracker.Type = 2 // Assuming type 2 for operation
 	go editTrackerEvent(tracker)
+
+	// Post changelog entry to Tracker
+	if event := getTrackerEvent(messageTimestamp); event.Event.Metadata.Id != "" {
+		go postTrackerChangeLog(event.Event, "edit", tracker.Description, i.User.Name)
+	}
 
 	fmt.Println("Edit modal processed:", tracker)
 }
@@ -525,12 +545,20 @@ func extractTrackerFromModal(i slack.InteractionCallback) tracker {
 		}
 	}
 
+	// Extraire la priorité de manière sécurisée (P3 par défaut)
+	var priority string = "P3" // Valeur par défaut
+	if priorityValues, exists := values["priority"]; exists {
+		if priorityValue, exists := priorityValues["select_input-priority"]; exists && priorityValue.SelectedOption.Value != "" {
+			priority = priorityValue.SelectedOption.Value
+		}
+	}
+
 	return tracker{
 		Summary:      values["summary"]["text_input-action"].Value,
 		Project:      project,
 		Environment:  values["environment"]["select_input-environment"].SelectedOption.Value,
 		Impact:       values["impact"]["select_input-impact"].SelectedOption.Value,
-		Priority:     values["priority"]["select_input-priority"].SelectedOption.Value,
+		Priority:     priority,
 		Datetime:     values["datetime"]["datetimepicker-action"].SelectedDateTime,
 		EndDate:      values["enddatetime"]["datetimepicker-action"].SelectedDateTime,
 		Stakeholders: values["stakeholders"]["multi_users_select-action"].SelectedUsers,
@@ -602,46 +630,71 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 
 		case "incident-action-close":
 			event := getTrackerEvent(callback.Message.Timestamp)
-			fmt.Println(event)
 			updateTrackerEvent(event.Event, 10, 4)
 			postThreadAction("close", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+			go postTrackerChangeLog(event.Event, "close", "", callback.User.Name)
+			w.WriteHeader(http.StatusOK)
 
 		case "action-approvers":
+			event := getTrackerEvent(callback.Message.Timestamp)
 			postThreadAction("approved", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+			go postTrackerChangeLog(event.Event, "approved", "", callback.User.Name)
+			w.WriteHeader(http.StatusOK)
 
 		case "action-reject":
+			event := getTrackerEvent(callback.Message.Timestamp)
 			postThreadAction("rejected", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+			go postTrackerChangeLog(event.Event, "rejected", "", callback.User.Name)
+			w.WriteHeader(http.StatusOK)
 
 		case "action":
 			switch action.SelectedOption.Value {
 			case "in_progress":
+				event := getTrackerEvent(callback.Message.Timestamp)
+				// Update Tracker status to in_progress as well
+				updateTrackerEvent(event.Event, 12, 1)
 				postThreadAction("in_progress", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+				go postTrackerChangeLog(event.Event, "in_progress", "", callback.User.Name)
+				w.WriteHeader(http.StatusOK)
 
 			case "drift_in_progress":
+				event := getTrackerEvent(callback.Message.Timestamp)
 				postThreadAction("drift_in_progress", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+				go postTrackerChangeLog(event.Event, "drift_in_progress", "", callback.User.Name)
+				w.WriteHeader(http.StatusOK)
 
 			case "pause":
+				event := getTrackerEvent(callback.Message.Timestamp)
 				postThreadAction("pause", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+				go postTrackerChangeLog(event.Event, "pause", "", callback.User.Name)
+				w.WriteHeader(http.StatusOK)
 
 			case "cancelled":
 				event := getTrackerEvent(callback.Message.Timestamp)
 				updateTrackerEvent(event.Event, 2, 1)
 				postThreadAction("cancelled", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+				go postTrackerChangeLog(event.Event, "cancelled", "", callback.User.Name)
+				w.WriteHeader(http.StatusOK)
 
 			case "post_poned":
+				event := getTrackerEvent(callback.Message.Timestamp)
 				postThreadAction("post_poned", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+				go postTrackerChangeLog(event.Event, "post_poned", "", callback.User.Name)
+				w.WriteHeader(http.StatusOK)
 
 			case "done":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				fmt.Println(event)
 				updateTrackerEvent(event.Event, 3, 1)
 				postThreadAction("done", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+				go postTrackerChangeLog(event.Event, "done", "", callback.User.Name)
+				w.WriteHeader(http.StatusOK)
 
 			case "close":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				fmt.Println(event)
 				updateTrackerEvent(event.Event, 10, 3)
 				postThreadAction("close", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
+				go postTrackerChangeLog(event.Event, "close", "", callback.User.Name)
+				w.WriteHeader(http.StatusOK)
 
 			}
 		}
@@ -649,6 +702,90 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 	}
 }
 
+// postTrackerChangeLog posts an entry to Tracker's changelog API for a given event
+func postTrackerChangeLog(event EventReponse, action string, note string, user string) {
+    // Map action to change_type and status transition
+    changeType := "commented"
+    field := ""
+    oldValue := ""
+    newValue := ""
+
+    switch action {
+    case "edit":
+        changeType = "updated"
+    case "approved":
+        changeType = "approved"
+    case "rejected":
+        changeType = "rejected"
+    case "in_progress", "drift_in_progress", "done", "close", "pause", "post_poned", "cancelled":
+        changeType = "status_changed"
+        field = "status"
+        oldValue = event.Attributes.Status
+        switch action {
+        case "drift_in_progress":
+            newValue = "in_progress"
+        default:
+            newValue = action
+        }
+    default:
+        changeType = "commented"
+    }
+
+    entry := map[string]interface{}{
+        "timestamp":   time.Now().UTC().Format(time.RFC3339),
+        "user":        user,
+        "change_type": changeType,
+        "field":       field,
+        "old_value":   oldValue,
+        "new_value":   newValue,
+        "comment":     note,
+    }
+
+    payload := map[string]interface{}{
+        "entry": entry,
+    }
+
+    bodyBytes, err := json.Marshal(payload)
+    if err != nil {
+        fmt.Printf("changelog marshal error: %v\n", err)
+        return
+    }
+
+	// Prefer internal event ID; fallback to slack_id for compatibility with older Tracker versions
+	eventId := event.Metadata.Id
+	identifierSource := "id"
+	if eventId == "" {
+		eventId = event.Metadata.SlackId
+		identifierSource = "slack_id"
+	}
+	if eventId == "" {
+		fmt.Printf("changelog skipped: no id or slack_id for event\n")
+		return
+	}
+
+	urlStr := os.Getenv("TRACKER_HOST") + "/api/v1alpha1/event/" + eventId + "/changelog"
+	fmt.Printf("Posting changelog to %s for action %s (using=%s, id=%s, slack_id=%s)\n", urlStr, action, identifierSource, event.Metadata.Id, event.Metadata.SlackId)
+    
+    req, err := http.NewRequest("POST", urlStr, bytes.NewReader(bodyBytes))
+    if err != nil {
+        fmt.Printf("changelog request build error: %v\n", err)
+        return
+    }
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        fmt.Printf("changelog post error: %v\n", err)
+        return
+    }
+	bodyResp, _ := io.ReadAll(resp.Body)
+    resp.Body.Close()
+    if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		fmt.Printf("changelog post failed (%d) for event %s with action %s: %s\n", resp.StatusCode, eventId, action, string(bodyResp))
+	} else {
+		fmt.Printf("changelog posted successfully for event %s\n", eventId)
+    }
+}
 func postThreadAction(action string, channelID string, messageTs string, user string) {
 	api := slack.New(botToken)
 
@@ -795,12 +932,23 @@ var environment map[string]int = map[string]int{"PROD": 7, "PREP": 6, "UAT": 4, 
 
 var priority map[string]int = map[string]int{"P1": 1, "P2": 2, "P3": 3, "P4": 4}
 
+// getPriorityWithDefault retourne la priorité numérique avec P3 (3) par défaut
+func getPriorityWithDefault(priorityStr string) int {
+	if priorityStr == "" {
+		return 3 // P3 par défaut
+	}
+	if val, exists := priority[priorityStr]; exists {
+		return val
+	}
+	return 3 // P3 par défaut si priorité inconnue
+}
+
 func postTrackerEvent(tracker tracker) {
 
 	var data Payload
 
 	data.Attributes.Message = tracker.Description
-	data.Attributes.Priority = priority[tracker.Priority]
+	data.Attributes.Priority = getPriorityWithDefault(tracker.Priority)
 	data.Attributes.Service = tracker.Project
 	data.Attributes.Source = "slack"
 	data.Attributes.Status = 1
@@ -864,7 +1012,7 @@ func editTrackerEvent(tracker tracker) {
 	var data Payload
 
 	data.Attributes.Message = tracker.Description
-	data.Attributes.Priority = priority[tracker.Priority]
+	data.Attributes.Priority = getPriorityWithDefault(tracker.Priority)
 	data.Attributes.Service = tracker.Project
 	data.Attributes.Source = "slack"
 	data.Attributes.Status = 7
@@ -928,7 +1076,7 @@ func updateTrackerEvent(tracker EventReponse, status int, tracker_type int) {
 	var data Payload
 
 	data.Attributes.Message = tracker.Attributes.Message
-	data.Attributes.Priority = priority[tracker.Attributes.Priority]
+	data.Attributes.Priority = getPriorityWithDefault(tracker.Attributes.Priority)
 	data.Attributes.Service = tracker.Attributes.Service
 	data.Attributes.Source = "slack"
 	data.Attributes.Status = status
