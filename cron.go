@@ -128,8 +128,9 @@ func formatSlackMessageByEnvironment(events []TodayEventReponse) string {
 
 				}
 				messageURL := createSlackMessageURL(workspace, channel, event.Metadata.SlackId)
+				statusIcon := getStatusIcon(event.Attributes.Status)
 
-				message += fmt.Sprintf("    -  %s - %s %s\n", time, event.Title, messageURL)
+				message += fmt.Sprintf("    - %s %s - %s %s\n", statusIcon, time, event.Title, messageURL)
 			}
 		}
 	}
@@ -185,5 +186,25 @@ func getEnvironmentEmoji(environment string) (string, string) {
 		return "🟢", "DEV"
 	default:
 		return "❓", "UNKOWN"
+	}
+}
+
+// getStatusIcon retourne l'icône correspondant au statut d'un événement
+func getStatusIcon(status string) string {
+	switch strings.ToLower(status) {
+	case "failed", "fail", "failure":
+		return "❌"
+	case "cancelled", "canceled", "cancel":
+		return "❌"
+	case "done", "completed", "success":
+		return "✅"
+	case "in_progress", "inprogress", "running":
+		return "🔄"
+	case "paused", "pause":
+		return "⏸️"
+	case "pending", "scheduled":
+		return "⏳"
+	default:
+		return "📋" // Icône par défaut pour les statuts inconnus
 	}
 }
