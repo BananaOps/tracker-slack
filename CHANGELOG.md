@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/BananaOps/tracker-slack/compare/v0.6.1...v0.7.0) (2025-12-23)
+
+
+### Features
+
+* add changelog ([#36](https://github.com/BananaOps/tracker-slack/issues/36)) ([fa791b5](https://github.com/BananaOps/tracker-slack/commit/fa791b51269c94048ea4645aaa6675f3438773e3))
+
 ## [0.6.1](https://github.com/BananaOps/tracker-slack/compare/v0.6.0...v0.6.1) (2025-12-17)
 
 
