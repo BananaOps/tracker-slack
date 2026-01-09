@@ -194,22 +194,6 @@ func handleTodayCommand(w http.ResponseWriter, s slack.SlashCommand) {
 	fmt.Printf("/today command processed successfully for user %s\n", s.UserName)
 }
 
-// sendSlackResponse envoie une réponse formatée à Slack
-func sendSlackResponse(w http.ResponseWriter, text string, responseType string) {
-	response := map[string]interface{}{
-		"response_type": responseType, // "ephemeral" ou "in_channel"
-		"text":          text,
-		"mrkdwn":        true, // Activer le formatage Markdown
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		fmt.Printf("Error encoding Slack response: %v\n", err)
-	}
-}
-
 func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 	// Authorization check
 	err := verifySigningSecret(r)
@@ -298,7 +282,11 @@ func handleEditDeploymentModal(w http.ResponseWriter, i slack.InteractionCallbac
 	// Post tracker event
 	tracker.SlackId = string(messageTimestamp)
 	tracker.Type = 1 // Assuming type 1 for deployment
-	go editTrackerEvent(tracker)
+	err = editTrackerEvent(tracker)
+	if err != nil {
+		fmt.Printf("Warning: Failed to edit event in Tracker API: %v\n", err)
+		// Continuer même si l'API échoue pour les modifications
+	}
 
 	// Post changelog entry to Tracker
 	if event := getTrackerEvent(messageTimestamp); event.Event.Metadata.Id != "" {
@@ -338,7 +326,11 @@ func handleEditDriftModal(w http.ResponseWriter, i slack.InteractionCallback) {
 
 	// Post tracker event
 	tracker.SlackId = string(messageTimestamp)
-	go editTrackerEvent(tracker)
+	err = editTrackerEvent(tracker)
+	if err != nil {
+		fmt.Printf("Warning: Failed to edit drift event in Tracker API: %v\n", err)
+		// Continuer même si l'API échoue pour les modifications
+	}
 
 	// Post changelog entry to Tracker
 	if event := getTrackerEvent(messageTimestamp); event.Event.Metadata.Id != "" {
@@ -379,7 +371,11 @@ func handleEditIncidentModal(w http.ResponseWriter, i slack.InteractionCallback)
 	// Post tracker event
 	tracker.SlackId = string(messageTimestamp)
 	tracker.Type = 4 // Assuming type 4 for incidents
-	go editTrackerEvent(tracker)
+	err = editTrackerEvent(tracker)
+	if err != nil {
+		fmt.Printf("Warning: Failed to edit incident event in Tracker API: %v\n", err)
+		// Continuer même si l'API échoue pour les modifications
+	}
 
 	// Post changelog entry to Tracker
 	if event := getTrackerEvent(messageTimestamp); event.Event.Metadata.Id != "" {
@@ -420,7 +416,11 @@ func handleEditRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallback)
 	// Post tracker event
 	tracker.SlackId = string(messageTimestamp)
 	tracker.Type = 2 // Assuming type 2 for operation
-	go editTrackerEvent(tracker)
+	err = editTrackerEvent(tracker)
+	if err != nil {
+		fmt.Printf("Warning: Failed to edit RPA usage event in Tracker API: %v\n", err)
+		// Continuer même si l'API échoue pour les modifications
+	}
 
 	// Post changelog entry to Tracker
 	if event := getTrackerEvent(messageTimestamp); event.Event.Metadata.Id != "" {
@@ -435,23 +435,47 @@ func handleCreateDeploymentModal(w http.ResponseWriter, i slack.InteractionCallb
 	api := slack.New(botToken)
 
 	tracker := extractTrackerFromModal(i)
+	tracker.Type = 1
 
+	// D'abord, essayer de créer l'événement dans l'API Tracker
+	fmt.Printf("Creating deployment event in Tracker API for project: %s\n", tracker.Project)
+
+	// Créer un SlackId temporaire pour l'API (sera remplacé après succès Slack)
+	tracker.SlackId = fmt.Sprintf("temp-%d", time.Now().UnixNano())
+
+	err := postTrackerEvent(tracker)
+	if err != nil {
+		fmt.Printf("Failed to create event in Tracker API: %v\n", err)
+		// Répondre avec une erreur à l'utilisateur
+		http.Error(w, fmt.Sprintf("❌ Impossible de créer l'événement dans Tracker: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// L'API a réussi, maintenant créer le message Slack
 	blocks := blockDeploymentMessage(tracker)
 
 	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_DEPLOYMENT_CHANNEL"),
 		slack.MsgOptionBlocks(blocks...),
 	)
 	if err != nil {
-		fmt.Printf("Error posting message: %s\n", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Printf("Error posting Slack message: %s\n", err)
+		// TODO: Optionnel - supprimer l'événement de l'API si Slack échoue
+		http.Error(w, "Erreur lors de la publication du message Slack", http.StatusInternalServerError)
+		return
 	}
-	fmt.Printf("Message successfully sent to channel %s at %s \n", channelID, slackTimestamp)
-	// Post tracker event
+
+	fmt.Printf("Message successfully sent to channel %s at %s\n", channelID, slackTimestamp)
+
+	// Mettre à jour l'événement avec le vrai SlackId
 	tracker.SlackId = string(slackTimestamp)
-	tracker.Type = 1
-	go postTrackerEvent(tracker)
-	// Add logic here to process the create modal
-	fmt.Println("Create modal processed:", tracker)
+	go func() {
+		if err := updateTrackerEventSlackId(tracker.SlackId, string(slackTimestamp)); err != nil {
+			fmt.Printf("Warning: Failed to update SlackId in Tracker: %v\n", err)
+		}
+	}()
+
+	fmt.Printf("Deployment modal processed successfully: %s\n", tracker.Project)
+	w.WriteHeader(http.StatusOK)
 }
 
 // handleCreateModal handles the create modal
@@ -459,24 +483,46 @@ func handleCreateDriftModal(w http.ResponseWriter, i slack.InteractionCallback) 
 	api := slack.New(botToken)
 
 	tracker := extractTrackerFromModal(i)
+	tracker.Type = 3
+	tracker.Datetime = time.Now().Unix()
 
+	// D'abord, essayer de créer l'événement dans l'API Tracker
+	fmt.Printf("Creating drift event in Tracker API for project: %s\n", tracker.Project)
+
+	// Créer un SlackId temporaire pour l'API
+	tracker.SlackId = fmt.Sprintf("temp-%d", time.Now().UnixNano())
+
+	err := postTrackerEvent(tracker)
+	if err != nil {
+		fmt.Printf("Failed to create drift event in Tracker API: %v\n", err)
+		http.Error(w, fmt.Sprintf("❌ Impossible de créer l'événement drift dans Tracker: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// L'API a réussi, maintenant créer le message Slack
 	blocks := blockDriftMessage(tracker)
 
 	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_DRIFT_CHANNEL"),
 		slack.MsgOptionBlocks(blocks...),
 	)
 	if err != nil {
-		fmt.Printf("Error posting message: %s\n", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Printf("Error posting Slack message: %s\n", err)
+		http.Error(w, "Erreur lors de la publication du message Slack", http.StatusInternalServerError)
+		return
 	}
-	fmt.Printf("Message successfully sent to channel %s at %s \n", channelID, slackTimestamp)
-	// Post tracker event
+
+	fmt.Printf("Message successfully sent to channel %s at %s\n", channelID, slackTimestamp)
+
+	// Mettre à jour l'événement avec le vrai SlackId
 	tracker.SlackId = string(slackTimestamp)
-	tracker.Type = 3
-	tracker.Datetime = time.Now().Unix()
-	go postTrackerEvent(tracker)
-	// Add logic here to process the create modal
-	fmt.Println("Create modal processed:", tracker)
+	go func() {
+		if err := updateTrackerEventSlackId(tracker.SlackId, string(slackTimestamp)); err != nil {
+			fmt.Printf("Warning: Failed to update SlackId in Tracker: %v\n", err)
+		}
+	}()
+
+	fmt.Printf("Drift modal processed successfully: %s\n", tracker.Project)
+	w.WriteHeader(http.StatusOK)
 }
 
 // handleCreateModal handles the create modal
@@ -484,24 +530,46 @@ func handleCreateIncidentModal(w http.ResponseWriter, i slack.InteractionCallbac
 	api := slack.New(botToken)
 
 	tracker := extractTrackerFromModal(i)
+	tracker.Type = 4
+	tracker.Datetime = time.Now().Unix()
 
+	// D'abord, essayer de créer l'événement dans l'API Tracker
+	fmt.Printf("Creating incident event in Tracker API for project: %s\n", tracker.Project)
+
+	// Créer un SlackId temporaire pour l'API
+	tracker.SlackId = fmt.Sprintf("temp-%d", time.Now().UnixNano())
+
+	err := postTrackerEvent(tracker)
+	if err != nil {
+		fmt.Printf("Failed to create incident event in Tracker API: %v\n", err)
+		http.Error(w, fmt.Sprintf("❌ Impossible de créer l'événement incident dans Tracker: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// L'API a réussi, maintenant créer le message Slack
 	blocks := blockIncidentMessage(tracker)
 
 	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_INCIDENT_CHANNEL"),
 		slack.MsgOptionBlocks(blocks...),
 	)
 	if err != nil {
-		fmt.Printf("Error posting message: %s\n", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Printf("Error posting Slack message: %s\n", err)
+		http.Error(w, "Erreur lors de la publication du message Slack", http.StatusInternalServerError)
+		return
 	}
-	fmt.Printf("Message successfully sent to channel %s at %s \n", channelID, slackTimestamp)
-	// Post tracker event
+
+	fmt.Printf("Message successfully sent to channel %s at %s\n", channelID, slackTimestamp)
+
+	// Mettre à jour l'événement avec le vrai SlackId
 	tracker.SlackId = string(slackTimestamp)
-	tracker.Type = 4
-	tracker.Datetime = time.Now().Unix()
-	go postTrackerEvent(tracker)
-	// Add logic here to process the create modal
-	fmt.Println("Create modal processed:", tracker)
+	go func() {
+		if err := updateTrackerEventSlackId(tracker.SlackId, string(slackTimestamp)); err != nil {
+			fmt.Printf("Warning: Failed to update SlackId in Tracker: %v\n", err)
+		}
+	}()
+
+	fmt.Printf("Incident modal processed successfully: %s\n", tracker.Project)
+	w.WriteHeader(http.StatusOK)
 }
 
 // handleCreateModal handles the create modal
@@ -509,24 +577,46 @@ func handleCreateRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallbac
 	api := slack.New(botToken)
 
 	tracker := extractTrackerFromModal(i)
+	tracker.Type = 2
+	tracker.Datetime = time.Now().Unix()
 
+	// D'abord, essayer de créer l'événement dans l'API Tracker
+	fmt.Printf("Creating RPA usage event in Tracker API for project: %s\n", tracker.Project)
+
+	// Créer un SlackId temporaire pour l'API
+	tracker.SlackId = fmt.Sprintf("temp-%d", time.Now().UnixNano())
+
+	err := postTrackerEvent(tracker)
+	if err != nil {
+		fmt.Printf("Failed to create RPA usage event in Tracker API: %v\n", err)
+		http.Error(w, fmt.Sprintf("❌ Impossible de créer l'événement RPA dans Tracker: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// L'API a réussi, maintenant créer le message Slack
 	blocks := blockRPAUsageMessage(tracker)
 
 	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_DEPLOYMENT_CHANNEL"),
 		slack.MsgOptionBlocks(blocks...),
 	)
 	if err != nil {
-		fmt.Printf("Error posting message: %s\n", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Printf("Error posting Slack message: %s\n", err)
+		http.Error(w, "Erreur lors de la publication du message Slack", http.StatusInternalServerError)
+		return
 	}
-	fmt.Printf("Message successfully sent to channel %s at %s \n", channelID, slackTimestamp)
-	// Post tracker event
+
+	fmt.Printf("Message successfully sent to channel %s at %s\n", channelID, slackTimestamp)
+
+	// Mettre à jour l'événement avec le vrai SlackId
 	tracker.SlackId = string(slackTimestamp)
-	tracker.Type = 2
-	tracker.Datetime = time.Now().Unix()
-	go postTrackerEvent(tracker)
-	// Add logic here to process the create modal
-	fmt.Println("Create modal processed:", tracker)
+	go func() {
+		if err := updateTrackerEventSlackId(tracker.SlackId, string(slackTimestamp)); err != nil {
+			fmt.Printf("Warning: Failed to update SlackId in Tracker: %v\n", err)
+		}
+	}()
+
+	fmt.Printf("RPA usage modal processed successfully: %s\n", tracker.Project)
+	w.WriteHeader(http.StatusOK)
 }
 
 // extractTrackerFromModal extracts data from the modal to create a tracker
@@ -546,7 +636,7 @@ func extractTrackerFromModal(i slack.InteractionCallback) tracker {
 	}
 
 	// Extraire la priorité de manière sécurisée (P3 par défaut)
-	var priority string = "P3" // Valeur par défaut
+	priority := "P3" // Valeur par défaut
 	if priorityValues, exists := values["priority"]; exists {
 		if priorityValue, exists := priorityValues["select_input-priority"]; exists && priorityValue.SelectedOption.Value != "" {
 			priority = priorityValue.SelectedOption.Value
@@ -630,7 +720,10 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 
 		case "incident-action-close":
 			event := getTrackerEvent(callback.Message.Timestamp)
-			updateTrackerEvent(event.Event, 10, 4)
+			err := updateTrackerEvent(event.Event, 10, 4)
+			if err != nil {
+				fmt.Printf("Warning: Failed to update incident status in Tracker API: %v\n", err)
+			}
 			postThreadAction("close", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 			go postTrackerChangeLog(event.Event, "close", "", callback.User.Name)
 			w.WriteHeader(http.StatusOK)
@@ -652,7 +745,10 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 			case "in_progress":
 				event := getTrackerEvent(callback.Message.Timestamp)
 				// Update Tracker status to in_progress as well
-				updateTrackerEvent(event.Event, 12, 1)
+				err := updateTrackerEvent(event.Event, 12, 1)
+				if err != nil {
+					fmt.Printf("Warning: Failed to update event status to in_progress in Tracker API: %v\n", err)
+				}
 				postThreadAction("in_progress", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 				go postTrackerChangeLog(event.Event, "in_progress", "", callback.User.Name)
 				w.WriteHeader(http.StatusOK)
@@ -671,7 +767,10 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 
 			case "cancelled":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				updateTrackerEvent(event.Event, 2, 1)
+				err := updateTrackerEvent(event.Event, 2, 1)
+				if err != nil {
+					fmt.Printf("Warning: Failed to update event status to cancelled in Tracker API: %v\n", err)
+				}
 				postThreadAction("cancelled", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 				go postTrackerChangeLog(event.Event, "cancelled", "", callback.User.Name)
 				w.WriteHeader(http.StatusOK)
@@ -684,14 +783,20 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 
 			case "done":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				updateTrackerEvent(event.Event, 3, 1)
+				err := updateTrackerEvent(event.Event, 3, 1)
+				if err != nil {
+					fmt.Printf("Warning: Failed to update event status to done in Tracker API: %v\n", err)
+				}
 				postThreadAction("done", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 				go postTrackerChangeLog(event.Event, "done", "", callback.User.Name)
 				w.WriteHeader(http.StatusOK)
 
 			case "close":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				updateTrackerEvent(event.Event, 10, 3)
+				err := updateTrackerEvent(event.Event, 10, 3)
+				if err != nil {
+					fmt.Printf("Warning: Failed to update event status to close in Tracker API: %v\n", err)
+				}
 				postThreadAction("close", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 				go postTrackerChangeLog(event.Event, "close", "", callback.User.Name)
 				w.WriteHeader(http.StatusOK)
@@ -704,52 +809,50 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 
 // postTrackerChangeLog posts an entry to Tracker's changelog API for a given event
 func postTrackerChangeLog(event EventReponse, action string, note string, user string) {
-    // Map action to change_type and status transition
-    changeType := "commented"
-    field := ""
-    oldValue := ""
-    newValue := ""
+	// Map action to change_type and status transition
+	field := ""
+	oldValue := ""
+	newValue := ""
 
-    switch action {
-    case "edit":
-        changeType = "updated"
-    case "approved":
-        changeType = "approved"
-    case "rejected":
-        changeType = "rejected"
-    case "in_progress", "drift_in_progress", "done", "close", "pause", "post_poned", "cancelled":
-        changeType = "status_changed"
-        field = "status"
-        oldValue = event.Attributes.Status
-        switch action {
-        case "drift_in_progress":
-            newValue = "in_progress"
-        default:
-            newValue = action
-        }
-    default:
-        changeType = "commented"
-    }
+	changeType := "commented"
+	switch action {
+	case "edit":
+		changeType = "updated"
+	case "approved":
+		changeType = "approved"
+	case "rejected":
+		changeType = "rejected"
+	case "in_progress", "drift_in_progress", "done", "close", "pause", "post_poned", "cancelled":
+		changeType = "status_changed"
+		field = "status"
+		oldValue = event.Attributes.Status
+		switch action {
+		case "drift_in_progress":
+			newValue = "in_progress"
+		default:
+			newValue = action
+		}
+	}
 
-    entry := map[string]interface{}{
-        "timestamp":   time.Now().UTC().Format(time.RFC3339),
-        "user":        user,
-        "change_type": changeType,
-        "field":       field,
-        "old_value":   oldValue,
-        "new_value":   newValue,
-        "comment":     note,
-    }
+	entry := map[string]interface{}{
+		"timestamp":   time.Now().UTC().Format(time.RFC3339),
+		"user":        user,
+		"change_type": changeType,
+		"field":       field,
+		"old_value":   oldValue,
+		"new_value":   newValue,
+		"comment":     note,
+	}
 
-    payload := map[string]interface{}{
-        "entry": entry,
-    }
+	payload := map[string]interface{}{
+		"entry": entry,
+	}
 
-    bodyBytes, err := json.Marshal(payload)
-    if err != nil {
-        fmt.Printf("changelog marshal error: %v\n", err)
-        return
-    }
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		fmt.Printf("changelog marshal error: %v\n", err)
+		return
+	}
 
 	// Prefer internal event ID; fallback to slack_id for compatibility with older Tracker versions
 	eventId := event.Metadata.Id
@@ -765,26 +868,26 @@ func postTrackerChangeLog(event EventReponse, action string, note string, user s
 
 	urlStr := os.Getenv("TRACKER_HOST") + "/api/v1alpha1/event/" + eventId + "/changelog"
 	fmt.Printf("Posting changelog to %s for action %s (using=%s, id=%s, slack_id=%s)\n", urlStr, action, identifierSource, event.Metadata.Id, event.Metadata.SlackId)
-    
-    req, err := http.NewRequest("POST", urlStr, bytes.NewReader(bodyBytes))
-    if err != nil {
-        fmt.Printf("changelog request build error: %v\n", err)
-        return
-    }
-    req.Header.Set("Content-Type", "application/json")
 
-    resp, err := http.DefaultClient.Do(req)
-    if err != nil {
-        fmt.Printf("changelog post error: %v\n", err)
-        return
-    }
+	req, err := http.NewRequest("POST", urlStr, bytes.NewReader(bodyBytes))
+	if err != nil {
+		fmt.Printf("changelog request build error: %v\n", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Printf("changelog post error: %v\n", err)
+		return
+	}
 	bodyResp, _ := io.ReadAll(resp.Body)
-    resp.Body.Close()
-    if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		fmt.Printf("changelog post failed (%d) for event %s with action %s: %s\n", resp.StatusCode, eventId, action, string(bodyResp))
 	} else {
 		fmt.Printf("changelog posted successfully for event %s\n", eventId)
-    }
+	}
 }
 func postThreadAction(action string, channelID string, messageTs string, user string) {
 	api := slack.New(botToken)
@@ -943,7 +1046,7 @@ func getPriorityWithDefault(priorityStr string) int {
 	return 3 // P3 par défaut si priorité inconnue
 }
 
-func postTrackerEvent(tracker tracker) {
+func postTrackerEvent(tracker tracker) error {
 
 	var data Payload
 
@@ -974,7 +1077,7 @@ func postTrackerEvent(tracker tracker) {
 	if tracker.SupportTeam == "Yes" {
 		data.Attributes.Notifications = append(data.Attributes.Notifications, "support")
 	}
-	if IsValidURL(tracker.Ticket) || tracker.Ticket == "" {
+	if IsValidURL(tracker.PullRequest) || tracker.PullRequest == "" {
 		data.Links.PullRequestLink = tracker.PullRequest
 	} else {
 		fmt.Printf("Invalid PullRequest URL: %s\n", tracker.PullRequest)
@@ -987,27 +1090,43 @@ func postTrackerEvent(tracker tracker) {
 	data.Title = tracker.Summary
 	data.SlackId = tracker.SlackId
 
-	payloadBytes, err := json.Marshal(data)
+	// Utiliser le nouveau client API avec retry
+	response, err := apiClient.PostEventWithRetry(data)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("Failed to post tracker event after retries: %v\n", err)
+		return err
 	}
 
-	body := bytes.NewReader(payloadBytes)
-
-	req, err := http.NewRequest("POST", os.Getenv("TRACKER_HOST")+"/api/v1alpha1/event", body)
-	if err != nil {
-		fmt.Println(err)
+	if !response.Success {
+		fmt.Printf("API returned error: %v\n", response.Error)
+		return response.Error
 	}
-	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer resp.Body.Close()
+	fmt.Printf("Tracker event posted successfully (status: %d)\n", response.StatusCode)
+	return nil
 }
 
-func editTrackerEvent(tracker tracker) {
+// updateTrackerEventSlackId met à jour le SlackId d'un événement existant
+func updateTrackerEventSlackId(tempSlackId, realSlackId string) error {
+	fmt.Printf("Updating SlackId from %s to %s in Tracker API\n", tempSlackId, realSlackId)
+
+	// Utiliser le nouveau client API avec retry
+	response, err := apiClient.UpdateSlackIdWithRetry(tempSlackId, realSlackId)
+	if err != nil {
+		fmt.Printf("Failed to update SlackId after retries: %v\n", err)
+		return err
+	}
+
+	if !response.Success {
+		fmt.Printf("API returned error for SlackId update: %v\n", response.Error)
+		return response.Error
+	}
+
+	fmt.Printf("SlackId updated successfully (status: %d)\n", response.StatusCode)
+	return nil
+}
+
+func editTrackerEvent(tracker tracker) error {
 
 	var data Payload
 
@@ -1029,7 +1148,7 @@ func editTrackerEvent(tracker tracker) {
 	}
 	data.Attributes.EndDate = time.Unix(tracker.EndDate, 0).Format("2006-01-02T15:04:05Z")
 	data.Attributes.Owner = tracker.Owner
-	if IsValidURL(tracker.Ticket) || tracker.Ticket == "" {
+	if IsValidURL(tracker.PullRequest) || tracker.PullRequest == "" {
 		data.Links.PullRequestLink = tracker.PullRequest
 	} else {
 		fmt.Printf("Invalid PullRequest URL: %s\n", tracker.PullRequest)
@@ -1049,29 +1168,25 @@ func editTrackerEvent(tracker tracker) {
 		data.Attributes.Notifications = append(data.Attributes.Notifications, "support")
 	}
 
-	payloadBytes, err := json.Marshal(data)
+	// Utiliser le nouveau client API avec retry
+	response, err := apiClient.PutEventWithRetry(data)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("Failed to edit tracker event after retries: %v\n", err)
+		return err
 	}
 
-	body := bytes.NewReader(payloadBytes)
-
-	req, err := http.NewRequest("PUT", os.Getenv("TRACKER_HOST")+"/api/v1alpha1/event", body)
-	if err != nil {
-		fmt.Println(err)
+	if !response.Success {
+		fmt.Printf("API returned error for edit: %v\n", response.Error)
+		return response.Error
 	}
-	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer resp.Body.Close()
+	fmt.Printf("Tracker event edited successfully (status: %d)\n", response.StatusCode)
+	return nil
 }
 
 var environmentMap map[string]int = map[string]int{"production": 7, "preproduction": 6, "UAT": 4, "development": 1}
 
-func updateTrackerEvent(tracker EventReponse, status int, tracker_type int) {
+func updateTrackerEvent(tracker EventReponse, status int, tracker_type int) error {
 
 	var data Payload
 
@@ -1093,24 +1208,20 @@ func updateTrackerEvent(tracker EventReponse, status int, tracker_type int) {
 	data.Attributes.StakeHolders = tracker.Attributes.StakeHolders
 	data.Attributes.Notifications = tracker.Attributes.Notifications
 
-	payloadBytes, err := json.Marshal(data)
+	// Utiliser le nouveau client API avec retry
+	response, err := apiClient.PutEventWithRetry(data)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("Failed to update tracker event after retries: %v\n", err)
+		return err
 	}
 
-	body := bytes.NewReader(payloadBytes)
-
-	req, err := http.NewRequest("PUT", os.Getenv("TRACKER_HOST")+"/api/v1alpha1/event", body)
-	if err != nil {
-		fmt.Println(err)
+	if !response.Success {
+		fmt.Printf("API returned error for update: %v\n", response.Error)
+		return response.Error
 	}
-	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer resp.Body.Close()
+	fmt.Printf("Tracker event updated successfully (status: %d)\n", response.StatusCode)
+	return nil
 }
 
 func getTrackerEvent(id string) Response {
