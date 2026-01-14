@@ -98,6 +98,8 @@ func handleCommand(w http.ResponseWriter, r *http.Request) {
 		handleDriftCommand(w, s)
 	case "/rpa_usage":
 		handleRPAUsageCommand(w, s)
+	case "/operation":
+		handleOperationCommand(w, s)
 	case "/today":
 		handleTodayCommand(w, s)
 	default:
@@ -155,6 +157,20 @@ func handleRPAUsageCommand(w http.ResponseWriter, s slack.SlashCommand) {
 	_, err := api.OpenView(s.TriggerID, view)
 	if err != nil {
 		logger.Error("Failed to open RPA usage modal",
+			slog.String("user", s.UserName),
+			slog.Any("error", err))
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleOperationCommand handles the /operation command
+func handleOperationCommand(w http.ResponseWriter, s slack.SlashCommand) {
+	api := slack.New(botToken)
+	view := generateOperationModalRequest(EventReponse{})
+	view.CallbackID = "operation-create"
+	_, err := api.OpenView(s.TriggerID, view)
+	if err != nil {
+		logger.Error("Failed to open operation modal",
 			slog.String("user", s.UserName),
 			slog.Any("error", err))
 	}
@@ -252,9 +268,13 @@ func handleViewSubmission(w http.ResponseWriter, i slack.InteractionCallback) {
 		handleCreateRPAUsageModal(w, i)
 	case "rpa-edit":
 		handleEditRPAUsageModal(w, i)
+	case "operation-create":
+		handleCreateOperationModal(w, i)
+	case "operation-edit":
+		handleEditOperationModal(w, i)
 
 	default:
-		fmt.Println("Unknown modal callback ID:", i.View.CallbackID)
+		logger.Warn("Unknown modal callback ID", slog.String("callback_id", i.View.CallbackID))
 		w.WriteHeader(http.StatusBadRequest)
 	}
 }
@@ -396,8 +416,11 @@ func handleEditRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallback)
 		slack.MsgOptionBlocks(blocks...),
 	)
 	if err != nil {
-		fmt.Printf("Error updating message: %s\n", err)
+		logger.Error("Failed to update RPA usage message",
+			slog.String("user", i.User.Name),
+			slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	_, _, err = api.PostMessage(
 		messageChannel,
@@ -405,13 +428,15 @@ func handleEditRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallback)
 		slack.MsgOptionTS(messageTimestamp),
 	)
 	if err != nil {
-		fmt.Printf("Error posting message to thread: %v", err)
+		logger.Error("Failed to post edit thread message", slog.Any("error", err))
 	}
-	fmt.Printf("Message successfully updated to channel %s at %s \n", channelID, slackTimestamp)
+	logger.Info("RPA usage message updated",
+		slog.String("channel", channelID),
+		slog.String("timestamp", slackTimestamp))
 
 	// Post tracker event
 	tracker.SlackId = string(messageTimestamp)
-	tracker.Type = 2 // Assuming type 2 for operation
+	tracker.Type = 2
 	go editTrackerEvent(tracker)
 
 	// Post changelog entry to Tracker
@@ -419,7 +444,53 @@ func handleEditRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallback)
 		go postTrackerChangeLog(event.Event, "edit", tracker.Description, i.User.Name)
 	}
 
-	fmt.Println("Edit modal processed:", tracker)
+	logger.Debug("RPA usage edit modal processed", slog.String("project", tracker.Project))
+}
+
+// handleEditOperationModal handles the edit modal for operations
+func handleEditOperationModal(w http.ResponseWriter, i slack.InteractionCallback) {
+	api := slack.New(botToken)
+
+	tracker := extractTrackerFromModal(i)
+	// Specific logic for the "edit" modal
+	event := getTrackerEvent(messageTimestamp)
+	tracker.Owner = event.Event.Attributes.Owner
+	blocks := blockOperationMessage(tracker)
+
+	channelID, slackTimestamp, _, err := api.UpdateMessage(messageChannel,
+		messageTimestamp,
+		slack.MsgOptionBlocks(blocks...),
+	)
+	if err != nil {
+		logger.Error("Failed to update operation message",
+			slog.String("user", i.User.Name),
+			slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, _, err = api.PostMessage(
+		messageChannel,
+		slack.MsgOptionText(fmt.Sprintf(":pencil: Edited by <@%s>", i.User.ID), false),
+		slack.MsgOptionTS(messageTimestamp),
+	)
+	if err != nil {
+		logger.Error("Failed to post edit thread message", slog.Any("error", err))
+	}
+	logger.Info("Operation message updated",
+		slog.String("channel", channelID),
+		slog.String("timestamp", slackTimestamp))
+
+	// Post tracker event
+	tracker.SlackId = string(messageTimestamp)
+	tracker.Type = 2 // Type operation
+	go editTrackerEvent(tracker)
+
+	// Post changelog entry to Tracker
+	if event := getTrackerEvent(messageTimestamp); event.Event.Metadata.Id != "" {
+		go postTrackerChangeLog(event.Event, "edit", tracker.Description, i.User.Name)
+	}
+
+	logger.Debug("Operation edit modal processed", slog.String("project", tracker.Project))
 }
 
 // handleCreateModal handles the create modal
@@ -508,17 +579,54 @@ func handleCreateRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallbac
 		slack.MsgOptionBlocks(blocks...),
 	)
 	if err != nil {
-		fmt.Printf("Error posting message: %s\n", err)
+		logger.Error("Failed to post RPA usage message",
+			slog.String("user", i.User.Name),
+			slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
-	fmt.Printf("Message successfully sent to channel %s at %s \n", channelID, slackTimestamp)
+	logger.Info("RPA usage message posted",
+		slog.String("channel", channelID),
+		slog.String("timestamp", slackTimestamp))
+
 	// Post tracker event
 	tracker.SlackId = string(slackTimestamp)
 	tracker.Type = 2
 	tracker.Datetime = time.Now().Unix()
 	go postTrackerEvent(tracker)
-	// Add logic here to process the create modal
-	fmt.Println("Create modal processed:", tracker)
+
+	logger.Debug("RPA usage modal processed", slog.String("project", tracker.Project))
+}
+
+// handleCreateOperationModal handles the create modal for operations
+func handleCreateOperationModal(w http.ResponseWriter, i slack.InteractionCallback) {
+	api := slack.New(botToken)
+
+	tracker := extractTrackerFromModal(i)
+
+	blocks := blockOperationMessage(tracker)
+
+	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_DEPLOYMENT_CHANNEL"),
+		slack.MsgOptionBlocks(blocks...),
+	)
+	if err != nil {
+		logger.Error("Failed to post operation message",
+			slog.String("user", i.User.Name),
+			slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	logger.Info("Operation message posted",
+		slog.String("channel", channelID),
+		slog.String("timestamp", slackTimestamp))
+
+	// Post tracker event
+	tracker.SlackId = string(slackTimestamp)
+	tracker.Type = 2 // Type operation
+	tracker.Datetime = time.Now().Unix()
+	go postTrackerEvent(tracker)
+
+	logger.Debug("Operation modal processed", slog.String("project", tracker.Project))
 }
 
 // extractTrackerFromModal extracts data from the modal to create a tracker
@@ -617,6 +725,19 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 			_, err := api.OpenView(callback.TriggerID, view)
 			if err != nil {
 				fmt.Printf("Error Open view: %s", err)
+			}
+			w.WriteHeader(http.StatusOK)
+
+		case "operation-action-edit":
+			messageTimestamp = callback.Message.Timestamp
+			messageChannel = callback.Channel.ID
+			event := getTrackerEvent(messageTimestamp)
+			api := slack.New(botToken)
+			view := generateOperationModalRequest(event.Event)
+			view.CallbackID = "operation-edit"
+			_, err := api.OpenView(callback.TriggerID, view)
+			if err != nil {
+				logger.Error("Failed to open operation edit modal", slog.Any("error", err))
 			}
 			w.WriteHeader(http.StatusOK)
 

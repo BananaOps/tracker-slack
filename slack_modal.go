@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -176,6 +177,61 @@ func generateRPAUsageModalRequest(event EventReponse) slack.ModalViewRequest {
 	return modalRequest
 }
 
+func generateOperationModalRequest(event EventReponse) slack.ModalViewRequest {
+
+	pullRequest := inputUrl("pull_request", "Link Pull Request", event.Links.PullRequestLink, ":github:")
+	pullRequest.Optional = true
+
+	ticket := inputUrl("ticket", "Link Ticket Issue", event.Links.Ticket, ":ticket:")
+	ticket.Optional = true
+
+	stakeholders := inputMultiUser("stakeholders", "🎯 Stakeholders", event.Attributes.StakeHolders)
+	stakeholders.Optional = true
+
+	changelog := inputText("changelog", "Description", event.Attributes.Message, "", true)
+	changelog.Optional = true
+
+	endDateTime := inputDatetime("enddatetime", "End Date", event.Attributes.EndDate)
+	endDateTime.Optional = true
+
+	checkNotificationRelease := checkNotification(event.Attributes.Notifications, "release")
+	checkNotificationSupport := checkNotification(event.Attributes.Notifications, "support")
+
+	// Créer le dropdown des projets
+	projectDropdown, err := createProjectDropdown("project", "⚙️ Project", event.Attributes.Service)
+	if err != nil {
+		logger.Error("Error creating project dropdown", slog.Any("error", err))
+		// Fallback vers un champ texte
+		projectDropdown = createProjectTextInput("project", "⚙️ Project", event.Attributes.Service)
+	}
+
+	modalRequest := slack.ModalViewRequest{
+		Type:   slack.VTModal,
+		Title:  slack.NewTextBlockObject("plain_text", "⚙️ Operation", true, false),
+		Submit: slack.NewTextBlockObject("plain_text", "Submit", true, false),
+		Close:  slack.NewTextBlockObject("plain_text", "Cancel", true, false),
+		Blocks: slack.Blocks{
+			BlockSet: []slack.Block{
+				inputText("summary", "Summary", event.Title, "", false),
+				projectDropdown,
+				inputEnv(event.Attributes.Environment),
+				inputImpact(event.Attributes.Impact),
+				inputPriority(event.Attributes.Priority),
+				inputReleaseTeam(checkNotificationRelease),
+				inputSupportTeam(checkNotificationSupport),
+				inputDatetime("datetime", "Start Date", event.Attributes.StartDate),
+				endDateTime,
+				stakeholders,
+				ticket,
+				pullRequest,
+				changelog,
+			},
+		},
+	}
+
+	return modalRequest
+}
+
 func checkNotification(notification []string, name string) bool {
 	for i := range notification {
 		if strings.EqualFold(notification[i], name) {
@@ -205,15 +261,15 @@ func blockDeploymentMessage(tracker tracker) []slack.Block {
 	timeInUTCLocation := t.In(location)
 	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
 
-	summary := fmt.Sprintf("*%s* \n \n", tracker.Summary)
-	project := fmt.Sprintf(":rocket: *Project:* %s \n", tracker.Project)
-	date := fmt.Sprintf("📅 *Date:* %s %s \n", formattedTime, location.String())
+	summary := fmt.Sprintf("🚀 *Deployment: %s* \n \n", tracker.Summary)
+	project := fmt.Sprintf("🚀 *Project:* %s \n", tracker.Project)
+	date := fmt.Sprintf("📅 *Start Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
-	impact := fmt.Sprintf(":boom: *Impact:* %s \n", tracker.Impact)
-	releaseTeam := ":bell: *Notification Release:* @release-team \n"
-	supportTeam := ":bell: *Notification Support:* @team-support \n"
-	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
-	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
+	impact := fmt.Sprintf("💥 *Impact:* %s \n", tracker.Impact)
+	releaseTeam := "🔔 *Notification Release:* @release-team \n"
+	supportTeam := "🔔 *Notification Support:* @team-support \n"
+	owner := fmt.Sprintf("👨‍💻 *Owner:* <@%s> \n", tracker.Owner)
+	description := fmt.Sprintf("📝 *Description:* \n %s \n", tracker.Description)
 
 	var stackholder string
 	if len(users) > 0 {
@@ -222,12 +278,12 @@ func blockDeploymentMessage(tracker tracker) []slack.Block {
 
 	var pullRequest string
 	if tracker.PullRequest != "" {
-		pullRequest = fmt.Sprintf(":github: *Pull Request:* %s \n", tracker.PullRequest)
+		pullRequest = fmt.Sprintf("🔗 *Pull Request:* %s \n", tracker.PullRequest)
 	}
 
 	var ticket string
 	if tracker.Ticket != "" {
-		ticket = fmt.Sprintf(":ticket: *Ticket Issue:* %s \n", tracker.Ticket)
+		ticket = fmt.Sprintf("🎫 *Ticket:* %s \n", tracker.Ticket)
 	}
 
 	if tracker.ReleaseTeam == "No" {
@@ -303,12 +359,12 @@ func blockDriftMessage(tracker tracker) []slack.Block {
 	timeInUTCLocation := t.In(location)
 	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
 
-	summary := fmt.Sprintf(":twisted_rightwards_arrows: *%s* \n \n", tracker.Summary)
-	project := fmt.Sprintf(":rocket: *Project:* %s \n", tracker.Project)
+	summary := fmt.Sprintf("🔀 *Drift: %s* \n \n", tracker.Summary)
+	project := fmt.Sprintf("🚀 *Project:* %s \n", tracker.Project)
 	date := fmt.Sprintf("📅 *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
-	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
-	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
+	owner := fmt.Sprintf("👨‍💻 *Owner:* <@%s> \n", tracker.Owner)
+	description := fmt.Sprintf("📝 *Description:* \n %s \n", tracker.Description)
 
 	var stackholder string
 	if len(users) > 0 {
@@ -317,12 +373,12 @@ func blockDriftMessage(tracker tracker) []slack.Block {
 
 	var pullRequest string
 	if tracker.PullRequest != "" {
-		pullRequest = fmt.Sprintf(":github: *Pull Request:* %s \n", tracker.PullRequest)
+		pullRequest = fmt.Sprintf("🔗 *Pull Request:* %s \n", tracker.PullRequest)
 	}
 
 	var ticket string
 	if tracker.Ticket != "" {
-		ticket = fmt.Sprintf(":ticket: *Ticket Issue:* %s \n", tracker.Ticket)
+		ticket = fmt.Sprintf("🎫 *Ticket:* %s \n", tracker.Ticket)
 	}
 
 	message := summary + project + date + environment + owner + stackholder + ticket + pullRequest + description
@@ -380,13 +436,13 @@ func blockIncidentMessage(tracker tracker) []slack.Block {
 	timeInUTCLocation := t.In(location)
 	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
 
-	summary := fmt.Sprintf(":fire: *%s* \n \n", tracker.Summary)
-	project := fmt.Sprintf(":rocket: *Project:* %s \n", tracker.Project)
+	summary := fmt.Sprintf("🔥 *Incident: %s* \n \n", tracker.Summary)
+	project := fmt.Sprintf("🚀 *Project:* %s \n", tracker.Project)
 	date := fmt.Sprintf("📅 *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", emojiEnv[tracker.Environment], tracker.Environment)
 	priority := fmt.Sprintf("%s *Priority:* %s \n", emojiPriority[tracker.Priority], tracker.Priority)
-	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
-	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
+	owner := fmt.Sprintf("👨‍💻 *Owner:* <@%s> \n", tracker.Owner)
+	description := fmt.Sprintf("📝 *Description:* \n %s \n", tracker.Description)
 
 	var stackholder string
 	if len(users) > 0 {
@@ -395,7 +451,7 @@ func blockIncidentMessage(tracker tracker) []slack.Block {
 
 	var ticket string
 	if tracker.Ticket != "" {
-		ticket = fmt.Sprintf(":ticket: *Ticket Issue:* %s \n", tracker.Ticket)
+		ticket = fmt.Sprintf("🎫 *Ticket:* %s \n", tracker.Ticket)
 	}
 
 	message := summary + project + date + environment + priority + owner + stackholder + ticket + description
@@ -438,11 +494,11 @@ func blockRPAUsageMessage(tracker tracker) []slack.Block {
 	timeInUTCLocation := t.In(location)
 	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
 
-	summary := fmt.Sprintf(":zap: *RPA Usage: %s* \n \n", tracker.Summary)
+	summary := fmt.Sprintf("🤖 *RPA Usage: %s* \n \n", tracker.Summary)
 	date := fmt.Sprintf("📅 *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", emojiEnv[tracker.Environment], tracker.Environment)
-	owner := fmt.Sprintf(":technologist: *Owner:* <@%s> \n", tracker.Owner)
-	description := fmt.Sprintf(":memo: *Description:* \n %s \n", tracker.Description)
+	owner := fmt.Sprintf("👨‍💻 *Owner:* <@%s> \n", tracker.Owner)
+	description := fmt.Sprintf("📝 *Description:* \n %s \n", tracker.Description)
 
 	message := summary + date + environment + owner + description
 
@@ -468,6 +524,117 @@ func blockRPAUsageMessage(tracker tracker) []slack.Block {
 				slack.NewTextBlockObject("plain_text", "Select status", true, false),
 				"action",
 				//slack.NewOptionBlockObject("edit", slack.NewTextBlockObject("plain_text", ":note: Edit", true, false), nil),
+				slack.NewOptionBlockObject("in_progress", slack.NewTextBlockObject("plain_text", ":loading: InProgress", true, false), nil),
+				slack.NewOptionBlockObject("pause", slack.NewTextBlockObject("plain_text", ":double_vertical_bar: Pause", true, false), nil),
+				slack.NewOptionBlockObject("cancelled", slack.NewTextBlockObject("plain_text", ":x: Cancelled", true, false), nil),
+				slack.NewOptionBlockObject("post_poned", slack.NewTextBlockObject("plain_text", ":hourglass_flowing_sand: PostPoned", true, false), nil),
+				slack.NewOptionBlockObject("done", slack.NewTextBlockObject("plain_text", ":white_check_mark: Done", true, false), nil),
+			),
+		),
+	}
+
+	return blocks
+}
+
+func blockOperationMessage(tracker tracker) []slack.Block {
+
+	var users []string
+
+	for i := range tracker.Stakeholders {
+		user := fmt.Sprintf("<@%s>", tracker.Stakeholders[i])
+		users = append(users, user)
+	}
+
+	var priorityEnv = map[string]string{"PROD": "🔴", "PREP": "🟡", "UAT": "🔵", "DEV": "🟢"}
+
+	//To convert print datetime in location
+	t := time.Unix(tracker.Datetime, 0).UTC()
+	location, err := time.LoadLocation(os.Getenv("TRACKER_TIMEZONE"))
+	if err != nil {
+		logger.Error("Failed to load timezone", slog.Any("error", err))
+	}
+	timeInUTCLocation := t.In(location)
+	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
+
+	var endTime string
+	if tracker.EndDate != 0 {
+		tEnd := time.Unix(tracker.EndDate, 0).UTC()
+		timeEndInUTCLocation := tEnd.In(location)
+		endTime = timeEndInUTCLocation.Format("2006-01-02 15:04")
+	}
+
+	summary := fmt.Sprintf("⚙️ *Operation: %s* \n \n", tracker.Summary)
+	project := fmt.Sprintf("🚀 *Project:* %s \n", tracker.Project)
+	date := fmt.Sprintf("📅 *Start Date:* %s %s \n", formattedTime, location.String())
+	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
+	priority := fmt.Sprintf("🎯 *Priority:* %s \n", tracker.Priority)
+	impact := fmt.Sprintf("💥 *Impact:* %s \n", tracker.Impact)
+	releaseTeam := "🔔 *Notification Release:* @release-team \n"
+	supportTeam := "🔔 *Notification Support:* @team-support \n"
+	owner := fmt.Sprintf("👨‍💻 *Owner:* <@%s> \n", tracker.Owner)
+
+	var stakeholders string
+	if len(users) > 0 {
+		stakeholders = fmt.Sprintf("🎯 *Stakeholders:* %s \n", strings.Join(users, ", "))
+	}
+
+	var ticket string
+	if tracker.Ticket != "" {
+		ticket = fmt.Sprintf("🎫 *Ticket:* %s \n", tracker.Ticket)
+	}
+
+	var pullRequest string
+	if tracker.PullRequest != "" {
+		pullRequest = fmt.Sprintf("🔗 *Pull Request:* %s \n", tracker.PullRequest)
+	}
+
+	var endDate string
+	if tracker.EndDate != 0 {
+		endDate = fmt.Sprintf("📅 *End Date:* %s %s \n", endTime, location.String())
+	}
+
+	if tracker.ReleaseTeam == "No" {
+		releaseTeam = ""
+	}
+	if tracker.SupportTeam == "No" {
+		supportTeam = ""
+	}
+
+	description := fmt.Sprintf("📝 *Description:* \n %s \n", tracker.Description)
+
+	message := summary + project + date + endDate + environment + impact + priority + owner + releaseTeam + supportTeam + stakeholders + ticket + pullRequest + description
+
+	// Define the modal blocks
+	blocks := []slack.Block{
+		slack.NewSectionBlock(
+			slack.NewTextBlockObject("mrkdwn", message, false, false),
+			nil,
+			nil,
+		),
+		slack.NewActionBlock(
+			"actionblock",
+			slack.NewButtonBlockElement(
+				"operation-action-edit",
+				"click_me_123",
+				slack.NewTextBlockObject("plain_text", ":pencil: Edit", true, false),
+			),
+			slack.NewButtonBlockElement(
+				"action-approvers",
+				"click_me_123",
+				slack.NewTextBlockObject("plain_text", ":ok: Approval", true, false),
+			),
+			slack.NewButtonBlockElement(
+				"action-reject",
+				"click_me_123",
+				slack.NewTextBlockObject("plain_text", ":x: Reject", true, false),
+			),
+		),
+		slack.NewActionBlock(
+			"status",
+			slack.NewOptionsSelectBlockElement(
+				"static_select",
+				slack.NewTextBlockObject("plain_text", "Select status", true, false),
+				"action",
 				slack.NewOptionBlockObject("in_progress", slack.NewTextBlockObject("plain_text", ":loading: InProgress", true, false), nil),
 				slack.NewOptionBlockObject("pause", slack.NewTextBlockObject("plain_text", ":double_vertical_bar: Pause", true, false), nil),
 				slack.NewOptionBlockObject("cancelled", slack.NewTextBlockObject("plain_text", ":x: Cancelled", true, false), nil),
