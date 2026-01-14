@@ -194,22 +194,6 @@ func handleTodayCommand(w http.ResponseWriter, s slack.SlashCommand) {
 	fmt.Printf("/today command processed successfully for user %s\n", s.UserName)
 }
 
-// sendSlackResponse envoie une réponse formatée à Slack
-func sendSlackResponse(w http.ResponseWriter, text string, responseType string) {
-	response := map[string]interface{}{
-		"response_type": responseType, // "ephemeral" ou "in_channel"
-		"text":          text,
-		"mrkdwn":        true, // Activer le formatage Markdown
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		fmt.Printf("Error encoding Slack response: %v\n", err)
-	}
-}
-
 func handleInteractiveAPIEndpoint(w http.ResponseWriter, r *http.Request) {
 	// Authorization check
 	err := verifySigningSecret(r)
@@ -546,7 +530,7 @@ func extractTrackerFromModal(i slack.InteractionCallback) tracker {
 	}
 
 	// Extraire la priorité de manière sécurisée (P3 par défaut)
-	var priority string = "P3" // Valeur par défaut
+	priority := "P3" // Valeur par défaut
 	if priorityValues, exists := values["priority"]; exists {
 		if priorityValue, exists := priorityValues["select_input-priority"]; exists && priorityValue.SelectedOption.Value != "" {
 			priority = priorityValue.SelectedOption.Value
@@ -704,52 +688,50 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 
 // postTrackerChangeLog posts an entry to Tracker's changelog API for a given event
 func postTrackerChangeLog(event EventReponse, action string, note string, user string) {
-    // Map action to change_type and status transition
-    changeType := "commented"
-    field := ""
-    oldValue := ""
-    newValue := ""
+	// Map action to change_type and status transition
+	field := ""
+	oldValue := ""
+	newValue := ""
 
-    switch action {
-    case "edit":
-        changeType = "updated"
-    case "approved":
-        changeType = "approved"
-    case "rejected":
-        changeType = "rejected"
-    case "in_progress", "drift_in_progress", "done", "close", "pause", "post_poned", "cancelled":
-        changeType = "status_changed"
-        field = "status"
-        oldValue = event.Attributes.Status
-        switch action {
-        case "drift_in_progress":
-            newValue = "in_progress"
-        default:
-            newValue = action
-        }
-    default:
-        changeType = "commented"
-    }
+	changeType := "commented"
+	switch action {
+	case "edit":
+		changeType = "updated"
+	case "approved":
+		changeType = "approved"
+	case "rejected":
+		changeType = "rejected"
+	case "in_progress", "drift_in_progress", "done", "close", "pause", "post_poned", "cancelled":
+		changeType = "status_changed"
+		field = "status"
+		oldValue = event.Attributes.Status
+		switch action {
+		case "drift_in_progress":
+			newValue = "in_progress"
+		default:
+			newValue = action
+		}
+	}
 
-    entry := map[string]interface{}{
-        "timestamp":   time.Now().UTC().Format(time.RFC3339),
-        "user":        user,
-        "change_type": changeType,
-        "field":       field,
-        "old_value":   oldValue,
-        "new_value":   newValue,
-        "comment":     note,
-    }
+	entry := map[string]interface{}{
+		"timestamp":   time.Now().UTC().Format(time.RFC3339),
+		"user":        user,
+		"change_type": changeType,
+		"field":       field,
+		"old_value":   oldValue,
+		"new_value":   newValue,
+		"comment":     note,
+	}
 
-    payload := map[string]interface{}{
-        "entry": entry,
-    }
+	payload := map[string]interface{}{
+		"entry": entry,
+	}
 
-    bodyBytes, err := json.Marshal(payload)
-    if err != nil {
-        fmt.Printf("changelog marshal error: %v\n", err)
-        return
-    }
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		fmt.Printf("changelog marshal error: %v\n", err)
+		return
+	}
 
 	// Prefer internal event ID; fallback to slack_id for compatibility with older Tracker versions
 	eventId := event.Metadata.Id
@@ -765,26 +747,28 @@ func postTrackerChangeLog(event EventReponse, action string, note string, user s
 
 	urlStr := os.Getenv("TRACKER_HOST") + "/api/v1alpha1/event/" + eventId + "/changelog"
 	fmt.Printf("Posting changelog to %s for action %s (using=%s, id=%s, slack_id=%s)\n", urlStr, action, identifierSource, event.Metadata.Id, event.Metadata.SlackId)
-    
-    req, err := http.NewRequest("POST", urlStr, bytes.NewReader(bodyBytes))
-    if err != nil {
-        fmt.Printf("changelog request build error: %v\n", err)
-        return
-    }
-    req.Header.Set("Content-Type", "application/json")
 
-    resp, err := http.DefaultClient.Do(req)
-    if err != nil {
-        fmt.Printf("changelog post error: %v\n", err)
-        return
-    }
+	req, err := http.NewRequest("POST", urlStr, bytes.NewReader(bodyBytes))
+	if err != nil {
+		fmt.Printf("changelog request build error: %v\n", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Printf("changelog post error: %v\n", err)
+		return
+	}
 	bodyResp, _ := io.ReadAll(resp.Body)
-    resp.Body.Close()
-    if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if err := resp.Body.Close(); err != nil {
+		fmt.Printf("Error closing response body: %v\n", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		fmt.Printf("changelog post failed (%d) for event %s with action %s: %s\n", resp.StatusCode, eventId, action, string(bodyResp))
 	} else {
 		fmt.Printf("changelog posted successfully for event %s\n", eventId)
-    }
+	}
 }
 func postThreadAction(action string, channelID string, messageTs string, user string) {
 	api := slack.New(botToken)
