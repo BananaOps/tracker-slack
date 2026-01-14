@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0](https://github.com/BananaOps/tracker-slack/compare/v0.7.0...v0.8.0) (2026-01-14)
+
+
+### Features
+
+* add commande opertation ([#41](https://github.com/BananaOps/tracker-slack/issues/41)) ([d6fe17e](https://github.com/BananaOps/tracker-slack/commit/d6fe17ea747042224cd168f83758eb994bf5e5a0))
+
+
+### Bug Fixes
+
+* add external selected when more that 100 projects ([#38](https://github.com/BananaOps/tracker-slack/issues/38)) ([8084649](https://github.com/BananaOps/tracker-slack/commit/80846496396a33f6cc80a45d080e2c0f81fbab26))
+
 ## [0.7.0](https://github.com/BananaOps/tracker-slack/compare/v0.6.1...v0.7.0) (2025-12-23)
 
 
