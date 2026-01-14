@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
-
 	"time"
 
 	"github.com/slack-go/slack"
@@ -47,13 +47,13 @@ type tracker struct {
 func verifySigningSecret(r *http.Request) error {
 	verifier, err := slack.NewSecretsVerifier(r.Header, signingSecret)
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Error("Failed to create secrets verifier", slog.Any("error", err))
 		return err
 	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Error("Failed to read request body", slog.Any("error", err))
 		return err
 	}
 	// Need to use r.Body again when unmarshalling SlashCommand and InteractionCallback
@@ -61,11 +61,11 @@ func verifySigningSecret(r *http.Request) error {
 
 	_, err = verifier.Write(body)
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Error("Failed to write to verifier", slog.Any("error", err))
 	}
 
 	if err = verifier.Ensure(); err != nil {
-		fmt.Println(err.Error())
+		logger.Error("Signature verification failed", slog.Any("error", err))
 		return err
 	}
 
@@ -78,7 +78,7 @@ func handleCommand(w http.ResponseWriter, r *http.Request) {
 	// check if the request is authorized
 	err := verifySigningSecret(r)
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Error("Unauthorized command request", slog.Any("error", err))
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -112,7 +112,9 @@ func handleDeploymentCommand(w http.ResponseWriter, s slack.SlashCommand) {
 	view.CallbackID = "deployment-create"
 	_, err := api.OpenView(s.TriggerID, view)
 	if err != nil {
-		fmt.Printf("Error opening view: %s", err)
+		logger.Error("Failed to open deployment modal",
+			slog.String("user", s.UserName),
+			slog.Any("error", err))
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -124,7 +126,9 @@ func handleIncidentCommand(w http.ResponseWriter, s slack.SlashCommand) {
 	view.CallbackID = "incident-create"
 	_, err := api.OpenView(s.TriggerID, view)
 	if err != nil {
-		fmt.Printf("Error opening view: %s", err)
+		logger.Error("Failed to open incident modal",
+			slog.String("user", s.UserName),
+			slog.Any("error", err))
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -136,7 +140,9 @@ func handleDriftCommand(w http.ResponseWriter, s slack.SlashCommand) {
 	view.CallbackID = "drift-create"
 	_, err := api.OpenView(s.TriggerID, view)
 	if err != nil {
-		fmt.Printf("Error opening view: %s", err)
+		logger.Error("Failed to open drift modal",
+			slog.String("user", s.UserName),
+			slog.Any("error", err))
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -148,7 +154,9 @@ func handleRPAUsageCommand(w http.ResponseWriter, s slack.SlashCommand) {
 	view.CallbackID = "rpa-create"
 	_, err := api.OpenView(s.TriggerID, view)
 	if err != nil {
-		fmt.Printf("Error opening view: %s", err)
+		logger.Error("Failed to open RPA usage modal",
+			slog.String("user", s.UserName),
+			slog.Any("error", err))
 	}
 	w.WriteHeader(http.StatusOK)
 }

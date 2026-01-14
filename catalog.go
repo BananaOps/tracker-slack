@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"sort"
@@ -45,7 +46,10 @@ func GetProjects() ([]string, error) {
 		projects := make([]string, len(projectCache.projects))
 		copy(projects, projectCache.projects)
 		projectCache.mutex.RUnlock()
-		fmt.Printf("Cache hit: returning %d projects from cache\n", len(projects))
+		logger.Debug("Cache hit",
+			slog.Int("project_count", len(projects)),
+			slog.Duration("cache_age", time.Since(projectCache.lastUpdated)),
+		)
 		return projects, nil
 	}
 
@@ -64,19 +68,19 @@ func refreshProjectCache() ([]string, error) {
 	if time.Since(projectCache.lastUpdated) < projectCache.ttl && len(projectCache.projects) > 0 {
 		projects := make([]string, len(projectCache.projects))
 		copy(projects, projectCache.projects)
-		fmt.Printf("Cache hit after lock: returning %d projects\n", len(projects))
+		logger.Debug("Cache hit after lock", slog.Int("project_count", len(projects)))
 		return projects, nil
 	}
 
-	fmt.Println("Cache miss: fetching projects from API...")
+	logger.Info("Cache miss, fetching projects from API")
 
 	projects, err := fetchProjectsFromAPI()
 	if err != nil {
-		fmt.Printf("Error fetching projects from API: %v\n", err)
+		logger.Error("Error fetching projects from API", slog.Any("error", err))
 
 		// Si on a des données en cache (même expirées), les retourner
 		if len(projectCache.projects) > 0 {
-			fmt.Printf("Using stale cache data: %d projects\n", len(projectCache.projects))
+			logger.Warn("Using stale cache data", slog.Int("project_count", len(projectCache.projects)))
 			staleProjects := make([]string, len(projectCache.projects))
 			copy(staleProjects, projectCache.projects)
 			return staleProjects, nil
@@ -89,7 +93,7 @@ func refreshProjectCache() ([]string, error) {
 	projectCache.projects = projects
 	projectCache.lastUpdated = time.Now()
 
-	fmt.Printf("Cache updated: %d projects loaded\n", len(projects))
+	logger.Info("Cache updated", slog.Int("project_count", len(projects)))
 
 	// Retourner une copie
 	result := make([]string, len(projects))
@@ -111,7 +115,7 @@ func fetchProjectsFromAPI() ([]string, error) {
 		Timeout: 10 * time.Second,
 	}
 
-	fmt.Printf("Fetching projects from: %s\n", apiURL)
+	logger.Debug("Fetching projects from API", slog.String("url", apiURL))
 
 	resp, err := client.Get(apiURL)
 	if err != nil {
@@ -145,27 +149,27 @@ func fetchProjectsFromAPI() ([]string, error) {
 	// Trier par ordre alphabétique
 	sort.Strings(projects)
 
-	fmt.Printf("Found %d projects in catalog\n", len(projects))
+	logger.Debug("Projects fetched from catalog", slog.Int("count", len(projects)))
 	return projects, nil
 }
 
 // InitProjectCache initialise le cache au démarrage de l'application
 func InitProjectCache() {
-	fmt.Println("Initializing project cache...")
+	logger.Info("Initializing project cache")
 
 	go func() {
 		_, err := GetProjects()
 		if err != nil {
-			fmt.Printf("Warning: Failed to initialize project cache: %v\n", err)
+			logger.Warn("Failed to initialize project cache", slog.Any("error", err))
 		} else {
-			fmt.Println("Project cache initialized successfully")
+			logger.Info("Project cache initialized successfully")
 		}
 	}()
 }
 
 // RefreshProjectCache force le rafraîchissement du cache
 func RefreshProjectCache() error {
-	fmt.Println("Manually refreshing project cache...")
+	logger.Debug("Manually refreshing project cache")
 	_, err := refreshProjectCache()
 	return err
 }
