@@ -262,7 +262,7 @@ func blockDeploymentMessage(tracker tracker) []slack.Block {
 	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
 
 	summary := fmt.Sprintf("🚀 *Deployment: %s* \n \n", tracker.Summary)
-	project := fmt.Sprintf("🚀 *Project:* %s \n", tracker.Project)
+	project := fmt.Sprintf("📦 *Project:* %s \n", tracker.Project)
 	date := fmt.Sprintf("📅 *Start Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
 	impact := fmt.Sprintf("💥 *Impact:* %s \n", tracker.Impact)
@@ -360,7 +360,7 @@ func blockDriftMessage(tracker tracker) []slack.Block {
 	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
 
 	summary := fmt.Sprintf("🔀 *Drift: %s* \n \n", tracker.Summary)
-	project := fmt.Sprintf("🚀 *Project:* %s \n", tracker.Project)
+	project := fmt.Sprintf("📦 *Project:* %s \n", tracker.Project)
 	date := fmt.Sprintf("📅 *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
 	owner := fmt.Sprintf("👨‍💻 *Owner:* <@%s> \n", tracker.Owner)
@@ -437,7 +437,7 @@ func blockIncidentMessage(tracker tracker) []slack.Block {
 	formattedTime := timeInUTCLocation.Format("2006-01-02 15:04")
 
 	summary := fmt.Sprintf("🔥 *Incident: %s* \n \n", tracker.Summary)
-	project := fmt.Sprintf("🚀 *Project:* %s \n", tracker.Project)
+	project := fmt.Sprintf("📦 *Project:* %s \n", tracker.Project)
 	date := fmt.Sprintf("📅 *Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", emojiEnv[tracker.Environment], tracker.Environment)
 	priority := fmt.Sprintf("%s *Priority:* %s \n", emojiPriority[tracker.Priority], tracker.Priority)
@@ -564,7 +564,7 @@ func blockOperationMessage(tracker tracker) []slack.Block {
 	}
 
 	summary := fmt.Sprintf("⚙️ *Operation: %s* \n \n", tracker.Summary)
-	project := fmt.Sprintf("🚀 *Project:* %s \n", tracker.Project)
+	project := fmt.Sprintf("� *Prroject:* %s \n", tracker.Project)
 	date := fmt.Sprintf("📅 *Start Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
 	priority := fmt.Sprintf("🎯 *Priority:* %s \n", tracker.Priority)
