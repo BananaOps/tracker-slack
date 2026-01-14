@@ -1148,3 +1148,56 @@ func IsValidURL(str string) bool {
 
 	return true
 }
+
+// handleOptionLoadEndpoint gère les requêtes de chargement d'options pour les external selects
+func handleOptionLoadEndpoint(w http.ResponseWriter, r *http.Request) {
+	// Authorization check
+	err := verifySigningSecret(r)
+	if err != nil {
+		fmt.Printf("Authorization failed for option load: %v\n", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	// Parsing the Slack payload
+	var i slack.InteractionCallback
+	err = json.Unmarshal([]byte(r.FormValue("payload")), &i)
+	if err != nil {
+		fmt.Printf("Error parsing option load payload: %v\n", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Vérifier que c'est bien une recherche de projet
+	if i.ActionID != "project" {
+		fmt.Printf("Unknown action ID in option load: %s\n", i.ActionID)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Rechercher directement dans le cache
+	filteredProjects := SearchProjectsInCache(i.Value)
+
+	// Créer les options pour la réponse
+	var options []*slack.OptionBlockObject
+	for _, project := range filteredProjects {
+		option := slack.NewOptionBlockObject(
+			project,
+			slack.NewTextBlockObject("plain_text", project, false, false),
+			nil,
+		)
+		options = append(options, option)
+	}
+
+	// Réponse au format attendu par Slack
+	response := map[string]interface{}{
+		"options": options,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		fmt.Printf("Error encoding option load response: %v\n", err)
+	}
+}

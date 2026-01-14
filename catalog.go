@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -31,7 +32,7 @@ type ProjectCache struct {
 
 // Instance globale du cache
 var projectCache = &ProjectCache{
-	ttl: 1 * time.Hour, // TTL d'1 heure
+	ttl: 5 * time.Minute, // TTL de 5 minutes
 }
 
 // GetProjects retourne la liste des projets depuis le cache ou l'API
@@ -181,4 +182,42 @@ func GetCacheStats() map[string]interface{} {
 		"is_expired":    time.Since(projectCache.lastUpdated) > projectCache.ttl,
 		"age_seconds":   time.Since(projectCache.lastUpdated).Seconds(),
 	}
+}
+
+// SearchProjectsInCache recherche des projets dans le cache sans appeler l'API
+func SearchProjectsInCache(query string) []string {
+	projectCache.mutex.RLock()
+	defer projectCache.mutex.RUnlock()
+
+	// Si le cache est vide, retourner une liste vide
+	if len(projectCache.projects) == 0 {
+		return []string{}
+	}
+
+	// Si pas de query, retourner tous les projets (limité à 100)
+	if query == "" {
+		limit := len(projectCache.projects)
+		if limit > 100 {
+			limit = 100
+		}
+		result := make([]string, limit)
+		copy(result, projectCache.projects[:limit])
+		return result
+	}
+
+	// Recherche case-insensitive
+	queryLower := strings.ToLower(query)
+	var results []string
+
+	for _, project := range projectCache.projects {
+		if strings.Contains(strings.ToLower(project), queryLower) {
+			results = append(results, project)
+			// Limiter à 100 résultats
+			if len(results) >= 100 {
+				break
+			}
+		}
+	}
+
+	return results
 }
