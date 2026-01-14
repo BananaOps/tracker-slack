@@ -26,3 +26,9 @@ go.work.sum
 
 *.old
 launch.json
+
+# Skaffold dev configuration (local only)
+skaffold.dev.yaml
+
+##skaffold dev
+skaffold-dev.yaml

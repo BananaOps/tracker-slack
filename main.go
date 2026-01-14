@@ -90,6 +90,7 @@ func newHTTPHandler() http.Handler {
 	// Register handlers.
 	mux.HandleFunc("/slack/command", handleCommand)
 	mux.HandleFunc("/slack/interactive_api_endpoint", handleInteractiveAPIEndpoint)
+	mux.HandleFunc("/slack/option-load-endpoint", handleOptionLoadEndpoint)
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/cache/status", handleCacheStatus)
 

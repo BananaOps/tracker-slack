@@ -20,7 +20,13 @@ func createProjectDropdown(blockID, label, initialValue string) (*slack.InputBlo
 		return createProjectTextInput(blockID, label, initialValue), nil
 	}
 
-	// Créer les options pour le dropdown
+	// Si plus de 100 projets, utiliser un external select avec recherche
+	if len(projects) > 100 {
+		fmt.Printf("Using external select for %d projects (> 100 limit)\n", len(projects))
+		return createProjectExternalSelect(blockID, label, initialValue), nil
+	}
+
+	// Créer les options pour le dropdown statique
 	var options []*slack.OptionBlockObject
 	for _, project := range projects {
 		option := slack.NewOptionBlockObject(
@@ -35,7 +41,7 @@ func createProjectDropdown(blockID, label, initialValue string) (*slack.InputBlo
 	selectElement := slack.NewOptionsSelectBlockElement(
 		slack.OptTypeStatic,
 		slack.NewTextBlockObject("plain_text", "Sélectionnez un projet", false, false),
-		blockID,
+		"project", // Action ID
 		options...,
 	)
 
@@ -56,21 +62,7 @@ func createProjectDropdown(blockID, label, initialValue string) (*slack.InputBlo
 				slack.NewTextBlockObject("plain_text", initialValue, false, false),
 				nil,
 			)
-		} else {
-			// Utiliser le premier projet par défaut
-			selectElement.InitialOption = slack.NewOptionBlockObject(
-				projects[0],
-				slack.NewTextBlockObject("plain_text", projects[0], false, false),
-				nil,
-			)
 		}
-	} else if len(projects) > 0 {
-		// Pas de valeur initiale, utiliser le premier projet
-		selectElement.InitialOption = slack.NewOptionBlockObject(
-			projects[0],
-			slack.NewTextBlockObject("plain_text", projects[0], false, false),
-			nil,
-		)
 	}
 
 	// Créer l'InputBlock
@@ -81,8 +73,41 @@ func createProjectDropdown(blockID, label, initialValue string) (*slack.InputBlo
 		selectElement,
 	)
 
-	fmt.Printf("Created project dropdown with %d options\n", len(projects))
+	fmt.Printf("Created static project dropdown with %d options\n", len(projects))
 	return inputBlock, nil
+}
+
+// createProjectExternalSelect crée un select avec recherche externe pour plus de 100 projets
+func createProjectExternalSelect(blockID, label, initialValue string) *slack.InputBlock {
+	// Créer un external select qui permettra la recherche
+	selectElement := slack.NewOptionsSelectBlockElement(
+		slack.OptTypeExternal,
+		slack.NewTextBlockObject("plain_text", "Rechercher un projet...", false, false),
+		"project", // Action ID - doit correspondre dans handleOptionLoadEndpoint
+	)
+
+	// Définir la valeur initiale si elle existe
+	if initialValue != "" {
+		selectElement.InitialOption = slack.NewOptionBlockObject(
+			initialValue,
+			slack.NewTextBlockObject("plain_text", initialValue, false, false),
+			nil,
+		)
+	}
+
+	// Nombre minimum de caractères avant de déclencher la recherche
+	minQueryLength := 2
+	selectElement.MinQueryLength = &minQueryLength
+
+	inputBlock := slack.NewInputBlock(
+		blockID,
+		slack.NewTextBlockObject("plain_text", label, false, false),
+		nil,
+		selectElement,
+	)
+
+	fmt.Println("Created external select for project search")
+	return inputBlock
 }
 
 // createProjectTextInput crée un champ texte pour le projet (fallback)
