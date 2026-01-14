@@ -56,6 +56,10 @@ spec:
               value: {{ .Values.env.tracker.channel_drift | quote }}
             - name: TRACKER_INCIDENT_CHANNEL
               value: {{ .Values.env.tracker.channel_incident | quote }}
+            - name: TRACKER_OPERATION_CHANNEL
+              value: {{ .Values.env.tracker.channel_operation | quote }}
+            - name: TRACKER_RPA_USAGE_CHANNEL
+              value: {{ .Values.env.tracker.channel_rpa_usage | quote }}
             - name: TRACKER_HOST
               value: {{ .Values.env.tracker.host | quote }}
             - name: TRACKER_SLACK_CRON_MESSAGE

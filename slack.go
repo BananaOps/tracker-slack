@@ -575,7 +575,7 @@ func handleCreateRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallbac
 
 	blocks := blockRPAUsageMessage(tracker)
 
-	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_DEPLOYMENT_CHANNEL"),
+	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_RPA_USAGE_CHANNEL"),
 		slack.MsgOptionBlocks(blocks...),
 	)
 	if err != nil {
@@ -606,7 +606,7 @@ func handleCreateOperationModal(w http.ResponseWriter, i slack.InteractionCallba
 
 	blocks := blockOperationMessage(tracker)
 
-	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_DEPLOYMENT_CHANNEL"),
+	channelID, slackTimestamp, err := api.PostMessage(os.Getenv("TRACKER_OPERATION_CHANNEL"),
 		slack.MsgOptionBlocks(blocks...),
 	)
 	if err != nil {
