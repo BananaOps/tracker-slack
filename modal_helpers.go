@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log/slog"
 
 	"github.com/slack-go/slack"
 )
@@ -10,19 +10,19 @@ import (
 func createProjectDropdown(blockID, label, initialValue string) (*slack.InputBlock, error) {
 	projects, err := GetProjects()
 	if err != nil {
-		fmt.Printf("Error getting projects for dropdown: %v\n", err)
+		logger.Error("Failed to get projects for dropdown", slog.Any("error", err))
 		// Fallback vers un champ texte
 		return createProjectTextInput(blockID, label, initialValue), nil
 	}
 
 	if len(projects) == 0 {
-		fmt.Println("No projects found, using text input")
+		logger.Warn("No projects found, using text input")
 		return createProjectTextInput(blockID, label, initialValue), nil
 	}
 
 	// Si plus de 100 projets, utiliser un external select avec recherche
 	if len(projects) > 100 {
-		fmt.Printf("Using external select for %d projects (> 100 limit)\n", len(projects))
+		logger.Debug("Using external select for projects", slog.Int("count", len(projects)))
 		return createProjectExternalSelect(blockID, label, initialValue), nil
 	}
 
@@ -73,7 +73,7 @@ func createProjectDropdown(blockID, label, initialValue string) (*slack.InputBlo
 		selectElement,
 	)
 
-	fmt.Printf("Created static project dropdown with %d options\n", len(projects))
+	logger.Debug("Created static project dropdown", slog.Int("options", len(projects)))
 	return inputBlock, nil
 }
 
@@ -106,7 +106,7 @@ func createProjectExternalSelect(blockID, label, initialValue string) *slack.Inp
 		selectElement,
 	)
 
-	fmt.Println("Created external select for project search")
+	logger.Debug("Created external select for project search")
 	return inputBlock
 }
 
@@ -128,6 +128,6 @@ func createProjectTextInput(blockID, label, initialValue string) *slack.InputBlo
 		textElement,
 	)
 
-	fmt.Println("Created project text input (fallback)")
+	logger.Debug("Created project text input (fallback)")
 	return inputBlock
 }

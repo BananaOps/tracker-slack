@@ -7,9 +7,11 @@ env:
   timezone: "Europe/Paris"
   tracker:
     host: "http://tracker.tracker.svc.cluster.local:8080"
-    channel_deployment: tracker
-    channel_drift: test
-    channel_incident: test
+    channel_deployment: tracker-channel
+    channel_drift: tracker-channel
+    channel_incident: tracker-channel
+    channel_operation: tracker-channel
+    channel_rpa_usage: tracker-channel
     slack_workspace: "workspace-name"
     cron_message: "5 7 * * *"
 
