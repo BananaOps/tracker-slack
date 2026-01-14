@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -15,13 +15,16 @@ import (
 )
 
 func main() {
+	// Initialiser le logger en premier
+	InitLogger()
+
 	if err := run(); err != nil {
-		log.Fatalln(err)
+		logger.Error("Application failed", slog.Any("error", err))
+		os.Exit(1)
 	}
 }
 
 func run() (err error) {
-
 	// Initialiser le cache des projets
 	InitProjectCache()
 
@@ -30,25 +33,26 @@ func run() (err error) {
 	// Add task for daily messages
 	_, err = c.AddFunc(os.Getenv("TRACKER_SLACK_CRON_MESSAGE"), listEventToday)
 	if err != nil {
-		log.Fatalf("Error adding scheduled task : %v", err)
+		logger.Error("Error adding scheduled task", slog.Any("error", err))
+		return err
 	}
 
 	// Add task for cache refresh (every hour)
 	_, err = c.AddFunc("0 * * * *", func() {
-		log.Println("Refreshing project cache...")
+		logger.Info("Refreshing project cache")
 		if err := RefreshProjectCache(); err != nil {
-			log.Printf("Error refreshing project cache: %v", err)
+			logger.Error("Error refreshing project cache", slog.Any("error", err))
 		} else {
-			log.Println("Project cache refreshed successfully")
+			logger.Info("Project cache refreshed successfully")
 		}
 	})
 	if err != nil {
-		log.Printf("Warning: Could not schedule cache refresh task: %v", err)
+		logger.Warn("Could not schedule cache refresh task", slog.Any("error", err))
 	}
 
 	// Start Task
 	c.Start()
-	log.Println("task planner started")
+	logger.Info("Task planner started")
 
 	// Handle SIGINT (CTRL+C) gracefully.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -64,7 +68,7 @@ func run() (err error) {
 	}
 	srvErr := make(chan error, 1)
 	go func() {
-		fmt.Println("server start on localhost:8080")
+		logger.Info("HTTP server starting", slog.String("address", "localhost:8080"))
 		srvErr <- srv.ListenAndServe()
 	}()
 
@@ -72,14 +76,17 @@ func run() (err error) {
 	select {
 	case err = <-srvErr:
 		// Error when starting HTTP server.
+		logger.Error("HTTP server error", slog.Any("error", err))
 		return
 	case <-ctx.Done():
 		// Wait for first CTRL+C.
 		// Stop receiving signal notifications as soon as possible.
+		logger.Info("Shutdown signal received")
 		stop()
 	}
 
 	// When Shutdown is called, ListenAndServe immediately returns ErrServerClosed.
+	logger.Info("Shutting down HTTP server")
 	err = srv.Shutdown(context.Background())
 	return
 }
