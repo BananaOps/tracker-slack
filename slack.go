@@ -90,7 +90,7 @@ func handleCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch s.Command {
-	case "/deployment-dev":
+	case "/deployment":
 		handleDeploymentCommand(w, s)
 	case "/incident":
 		handleIncidentCommand(w, s)
@@ -98,7 +98,7 @@ func handleCommand(w http.ResponseWriter, r *http.Request) {
 		handleDriftCommand(w, s)
 	case "/rpa_usage":
 		handleRPAUsageCommand(w, s)
-	case "/operation-dev":
+	case "/operation":
 		handleOperationCommand(w, s)
 	case "/today":
 		handleTodayCommand(w, s)
