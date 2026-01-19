@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/slack-go/slack"
@@ -90,7 +91,7 @@ func handleCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch s.Command {
-	case "/deployment":
+	case "/deployment-dev":
 		handleDeploymentCommand(w, s)
 	case "/incident":
 		handleIncidentCommand(w, s)
@@ -98,7 +99,7 @@ func handleCommand(w http.ResponseWriter, r *http.Request) {
 		handleDriftCommand(w, s)
 	case "/rpa_usage":
 		handleRPAUsageCommand(w, s)
-	case "/operation":
+	case "/operation-dev":
 		handleOperationCommand(w, s)
 	case "/today":
 		handleTodayCommand(w, s)
@@ -436,7 +437,7 @@ func handleEditRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallback)
 
 	// Post tracker event
 	tracker.SlackId = string(messageTimestamp)
-	tracker.Type = 2
+	tracker.Type = 5 // Type RPA Usage
 	go editTrackerEvent(tracker)
 
 	// Post changelog entry to Tracker
@@ -591,7 +592,7 @@ func handleCreateRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallbac
 
 	// Post tracker event
 	tracker.SlackId = string(slackTimestamp)
-	tracker.Type = 2
+	tracker.Type = 5 // Type RPA Usage
 	tracker.Datetime = time.Now().Unix()
 	go postTrackerEvent(tracker)
 
@@ -984,6 +985,7 @@ func messageReaction(api *slack.Client, channelID string, messageTs string, reac
 }
 
 type Payload struct {
+	Id         string `json:"id,omitempty"` // ID de l'événement pour les mises à jour
 	Attributes struct {
 		Message       string   `json:"message"`
 		Priority      int      `json:"priority"`
@@ -1064,7 +1066,7 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.Priority = getPriorityWithDefault(tracker.Priority)
 	data.Attributes.Service = tracker.Project
 	data.Attributes.Source = "slack"
-	data.Attributes.Status = 1
+	data.Attributes.Status = 
 	data.Attributes.Type = tracker.Type
 	data.Attributes.Environment = environment[tracker.Environment]
 	if tracker.Impact == "Yes" {
@@ -1313,4 +1315,127 @@ func handleOptionLoadEndpoint(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		fmt.Printf("Error encoding option load response: %v\n", err)
 	}
+}
+
+// updateTrackerEventSlackId met à jour le slackId d'un événement dans le tracker
+func updateTrackerEventSlackId(eventId string, slackId string) error {
+	if eventId == "" {
+		return fmt.Errorf("eventId is required")
+	}
+	if slackId == "" {
+		return fmt.Errorf("slackId is required")
+	}
+
+	// Récupérer l'événement complet par son ID
+	resp, err := http.Get(os.Getenv("TRACKER_HOST") + "/api/v1alpha1/event/" + eventId)
+	if err != nil {
+		return fmt.Errorf("failed to get event: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Error("Failed to close response body", slog.Any("error", err))
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to get event (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var event Response
+	if err := json.Unmarshal(body, &event); err != nil {
+		return fmt.Errorf("failed to parse event: %w", err)
+	}
+
+	// Créer le payload complet avec le slackId mis à jour
+	var data Payload
+	data.Id = eventId // Ajouter l'ID de l'événement
+	data.Attributes.Message = event.Event.Attributes.Message
+	data.Attributes.Priority = getPriorityWithDefault(event.Event.Attributes.Priority)
+	data.Attributes.Service = event.Event.Attributes.Service
+	data.Attributes.Source = event.Event.Attributes.Source
+
+	// Convertir le statut string en int (garder le statut actuel)
+	statusMap := map[string]int{
+		"pending":     1,
+		"in_progress": 12,
+		"done":        3,
+		"cancelled":   2,
+		"close":       10,
+	}
+	if statusInt, ok := statusMap[strings.ToLower(event.Event.Attributes.Status)]; ok {
+		data.Attributes.Status = statusInt
+	} else {
+		data.Attributes.Status = 1 // Default
+	}
+
+	// Convertir le type string en int
+	typeMap := map[string]int{
+		"deployment": 1,
+		"operation":  2,
+		"drift":      3,
+		"incident":   4,
+		"rpa_usage":  5,
+	}
+	if typeInt, ok := typeMap[strings.ToLower(event.Event.Attributes.Type)]; ok {
+		data.Attributes.Type = typeInt
+	} else {
+		data.Attributes.Type = 1 // Default
+	}
+
+	data.Attributes.Environment = environmentMap[event.Event.Attributes.Environment]
+	data.Attributes.Impact = event.Event.Attributes.Impact
+	data.Attributes.StartDate = event.Event.Attributes.StartDate
+	data.Attributes.EndDate = event.Event.Attributes.EndDate
+	data.Attributes.Owner = event.Event.Attributes.Owner
+	data.Links.PullRequestLink = event.Event.Links.PullRequestLink
+	data.Links.Ticket = event.Event.Links.Ticket
+	data.Title = event.Event.Title
+	data.SlackId = slackId // Mettre à jour le slackId
+	data.Attributes.StakeHolders = event.Event.Attributes.StakeHolders
+	data.Attributes.Notifications = event.Event.Attributes.Notifications
+
+	payloadBytes, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	// Construire l'URL de l'API
+	urlStr := os.Getenv("TRACKER_HOST") + "/api/v1alpha1/event"
+
+	// Créer la requête PUT
+	req, err := http.NewRequest("PUT", urlStr, bytes.NewReader(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Exécuter la requête
+	client := &http.Client{Timeout: 10 * time.Second}
+	respPut, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer func() {
+		if err := respPut.Body.Close(); err != nil {
+			logger.Error("Failed to close response body", slog.Any("error", err))
+		}
+	}()
+
+	// Vérifier le statut de la réponse
+	if respPut.StatusCode < 200 || respPut.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(respPut.Body)
+		return fmt.Errorf("API returned status %d: %s", respPut.StatusCode, string(bodyBytes))
+	}
+
+	logger.Debug("SlackId updated successfully",
+		slog.String("event_id", eventId),
+		slog.String("slack_id", slackId))
+
+	return nil
 }
