@@ -50,6 +50,17 @@ func run() (err error) {
 		logger.Warn("Could not schedule cache refresh task", slog.Any("error", err))
 	}
 
+	// Add task for syncing events to Slack (every 5 minutes)
+	_, err = c.AddFunc("* * * * *", func() {
+		logger.Debug("Starting sync events to Slack cron")
+		syncEventsToSlack()
+	})
+	if err != nil {
+		logger.Error("Error adding sync events task", slog.Any("error", err))
+		return err
+	}
+	logger.Info("Sync events to Slack task scheduled (every 5 minutes)")
+
 	// Start Task
 	c.Start()
 	logger.Info("Task planner started")

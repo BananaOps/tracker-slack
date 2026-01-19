@@ -436,7 +436,7 @@ func handleEditRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallback)
 
 	// Post tracker event
 	tracker.SlackId = string(messageTimestamp)
-	tracker.Type = 2
+	tracker.Type = 5 // Type RPA Usage
 	go editTrackerEvent(tracker)
 
 	// Post changelog entry to Tracker
@@ -591,7 +591,7 @@ func handleCreateRPAUsageModal(w http.ResponseWriter, i slack.InteractionCallbac
 
 	// Post tracker event
 	tracker.SlackId = string(slackTimestamp)
-	tracker.Type = 2
+	tracker.Type = 5 // Type RPA Usage
 	tracker.Datetime = time.Now().Unix()
 	go postTrackerEvent(tracker)
 
@@ -764,16 +764,22 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 			switch action.SelectedOption.Value {
 			case "in_progress":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				// Update Tracker status to in_progress as well
-				updateTrackerEvent(event.Event, 12, 1)
+				// Determine event type from the event
+				eventType := 1 // default to deployment
+				switch event.Event.Attributes.Type {
+				case "deployment":
+					eventType = 1
+				case "operation":
+					eventType = 2
+				case "drift":
+					eventType = 3
+				case "incident":
+					eventType = 4
+				}
+				// Update Tracker status to in_progress (12)
+				updateTrackerEvent(event.Event, 12, eventType)
 				postThreadAction("in_progress", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 				go postTrackerChangeLog(event.Event, "in_progress", "", callback.User.Name)
-				w.WriteHeader(http.StatusOK)
-
-			case "drift_in_progress":
-				event := getTrackerEvent(callback.Message.Timestamp)
-				postThreadAction("drift_in_progress", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
-				go postTrackerChangeLog(event.Event, "drift_in_progress", "", callback.User.Name)
 				w.WriteHeader(http.StatusOK)
 
 			case "pause":
@@ -784,7 +790,20 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 
 			case "cancelled":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				updateTrackerEvent(event.Event, 2, 1)
+				// Determine event type
+				eventType := 1
+				switch event.Event.Attributes.Type {
+				case "deployment":
+					eventType = 1
+				case "operation":
+					eventType = 2
+				case "drift":
+					eventType = 3
+				case "incident":
+					eventType = 4
+				}
+				// Update Tracker status to failure (2)
+				updateTrackerEvent(event.Event, 2, eventType)
 				postThreadAction("cancelled", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 				go postTrackerChangeLog(event.Event, "cancelled", "", callback.User.Name)
 				w.WriteHeader(http.StatusOK)
@@ -797,14 +816,44 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 
 			case "done":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				updateTrackerEvent(event.Event, 3, 1)
+				// Determine event type
+				eventType := 1
+				switch event.Event.Attributes.Type {
+				case "deployment":
+					eventType = 1
+				case "operation":
+					eventType = 2
+				case "drift":
+					eventType = 3
+				case "incident":
+					eventType = 4
+				}
+				// Update Tracker status to done (11) for drift/incident or success (3) for deployment/operation/rpa
+				status := 11
+				if eventType == 1 || eventType == 2 {
+					status = 3 // success for deployment/operation/rpa
+				}
+				updateTrackerEvent(event.Event, status, eventType)
 				postThreadAction("done", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 				go postTrackerChangeLog(event.Event, "done", "", callback.User.Name)
 				w.WriteHeader(http.StatusOK)
 
 			case "close":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				updateTrackerEvent(event.Event, 10, 3)
+				// Determine event type
+				eventType := 3
+				switch event.Event.Attributes.Type {
+				case "deployment":
+					eventType = 1
+				case "operation":
+					eventType = 2
+				case "drift":
+					eventType = 3
+				case "incident":
+					eventType = 4
+				}
+				// Update Tracker status to close (10)
+				updateTrackerEvent(event.Event, 10, eventType)
 				postThreadAction("close", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 				go postTrackerChangeLog(event.Event, "close", "", callback.User.Name)
 				w.WriteHeader(http.StatusOK)
@@ -830,16 +879,11 @@ func postTrackerChangeLog(event EventReponse, action string, note string, user s
 		changeType = "approved"
 	case "rejected":
 		changeType = "rejected"
-	case "in_progress", "drift_in_progress", "done", "close", "pause", "post_poned", "cancelled":
+	case "in_progress", "done", "close", "pause", "post_poned", "cancelled":
 		changeType = "status_changed"
 		field = "status"
 		oldValue = event.Attributes.Status
-		switch action {
-		case "drift_in_progress":
-			newValue = "in_progress"
-		default:
-			newValue = action
-		}
+		newValue = action
 	}
 
 	entry := map[string]interface{}{
@@ -908,9 +952,6 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 	case "in_progress":
 		message = fmt.Sprintf(":loading: In progress by <@%s>", user)
 		reaction = "loading"
-	case "drift_in_progress":
-		message = fmt.Sprintf(":warning: Drift In progress by <@%s>", user)
-		reaction = "warning"
 	case "pause":
 		message = fmt.Sprintf(":double_vertical_bar: Paused by <@%s>", user)
 		reaction = "double_vertical_bar"
@@ -984,6 +1025,7 @@ func messageReaction(api *slack.Client, channelID string, messageTs string, reac
 }
 
 type Payload struct {
+	Id         string `json:"id,omitempty"` // ID de l'événement pour les mises à jour
 	Attributes struct {
 		Message       string   `json:"message"`
 		Priority      int      `json:"priority"`
@@ -1064,7 +1106,24 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.Priority = getPriorityWithDefault(tracker.Priority)
 	data.Attributes.Service = tracker.Project
 	data.Attributes.Source = "slack"
-	data.Attributes.Status = 1
+	
+	// Set status based on event type
+	// Deployment (1), Operation (2), RPA Usage (2) -> planned (13)
+	// Drift (3) -> open (9)
+	// Incident (4) -> open (9)
+	switch tracker.Type {
+	case 1: // Deployment
+		data.Attributes.Status = 13 // planned
+	case 2: // Operation or RPA Usage
+		data.Attributes.Status = 13 // planned
+	case 3: // Drift
+		data.Attributes.Status = 9 // open
+	case 4: // Incident
+		data.Attributes.Status = 9 // open
+	default:
+		data.Attributes.Status = 1 // default
+	}
+	
 	data.Attributes.Type = tracker.Type
 	data.Attributes.Environment = environment[tracker.Environment]
 	if tracker.Impact == "Yes" {
@@ -1313,4 +1372,58 @@ func handleOptionLoadEndpoint(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		fmt.Printf("Error encoding option load response: %v\n", err)
 	}
+}
+
+// updateTrackerEventSlackId met à jour le slackId d'un événement dans le tracker
+func updateTrackerEventSlackId(eventId string, slackId string) error {
+	if eventId == "" {
+		return fmt.Errorf("eventId is required")
+	}
+	if slackId == "" {
+		return fmt.Errorf("slackId is required")
+	}
+
+	// Créer le payload avec le slackId
+	payload := map[string]string{
+		"slack_id": slackId,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	// Construire l'URL de l'API avec le nouvel endpoint
+	urlStr := fmt.Sprintf("%s/api/v1alpha1/event/%s/slack", os.Getenv("TRACKER_HOST"), eventId)
+
+	// Créer la requête POST
+	req, err := http.NewRequest("POST", urlStr, bytes.NewReader(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Exécuter la requête
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Error("Failed to close response body", slog.Any("error", err))
+		}
+	}()
+
+	// Vérifier le statut de la réponse
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	logger.Debug("SlackId updated successfully",
+		slog.String("event_id", eventId),
+		slog.String("slack_id", slackId))
+
+	return nil
 }

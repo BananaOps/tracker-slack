@@ -404,8 +404,8 @@ func blockDriftMessage(tracker tracker) []slack.Block {
 				"static_select",
 				slack.NewTextBlockObject("plain_text", "Select status", true, false),
 				"action",
-				slack.NewOptionBlockObject("drift_in_progress", slack.NewTextBlockObject("plain_text", ":warning: Drift InProgress", true, false), nil),
-				slack.NewOptionBlockObject("cancelled", slack.NewTextBlockObject("plain_text", ":x: Cancelled", true, false), nil),
+				slack.NewOptionBlockObject("in_progress", slack.NewTextBlockObject("plain_text", ":loading: InProgress", true, false), nil),
+				slack.NewOptionBlockObject("done", slack.NewTextBlockObject("plain_text", ":white_check_mark: Done", true, false), nil),
 				slack.NewOptionBlockObject("close", slack.NewTextBlockObject("plain_text", ":white_check_mark: Close", true, false), nil),
 			),
 		),
@@ -474,6 +474,17 @@ func blockIncidentMessage(tracker tracker) []slack.Block {
 				"incident-action-close",
 				"click_me_123",
 				slack.NewTextBlockObject("plain_text", ":white_check_mark: Close", true, false),
+			),
+		),
+		slack.NewActionBlock(
+			"status",
+			slack.NewOptionsSelectBlockElement(
+				"static_select",
+				slack.NewTextBlockObject("plain_text", "Select status", true, false),
+				"action",
+				slack.NewOptionBlockObject("in_progress", slack.NewTextBlockObject("plain_text", ":loading: InProgress", true, false), nil),
+				slack.NewOptionBlockObject("done", slack.NewTextBlockObject("plain_text", ":white_check_mark: Done", true, false), nil),
+				slack.NewOptionBlockObject("close", slack.NewTextBlockObject("plain_text", ":white_check_mark: Close", true, false), nil),
 			),
 		),
 	}
@@ -564,7 +575,7 @@ func blockOperationMessage(tracker tracker) []slack.Block {
 	}
 
 	summary := fmt.Sprintf("⚙️ *Operation: %s* \n \n", tracker.Summary)
-	project := fmt.Sprintf("� *Prroject:* %s \n", tracker.Project)
+	project := fmt.Sprintf("🚀 *Project:* %s \n", tracker.Project)
 	date := fmt.Sprintf("📅 *Start Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
 	priority := fmt.Sprintf("🎯 *Priority:* %s \n", tracker.Priority)
