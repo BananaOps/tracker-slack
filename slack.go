@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/slack-go/slack"
@@ -765,16 +764,22 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 			switch action.SelectedOption.Value {
 			case "in_progress":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				// Update Tracker status to in_progress as well
-				updateTrackerEvent(event.Event, 12, 1)
+				// Determine event type from the event
+				eventType := 1 // default to deployment
+				switch event.Event.Attributes.Type {
+				case "deployment":
+					eventType = 1
+				case "operation":
+					eventType = 2
+				case "drift":
+					eventType = 3
+				case "incident":
+					eventType = 4
+				}
+				// Update Tracker status to in_progress (12)
+				updateTrackerEvent(event.Event, 12, eventType)
 				postThreadAction("in_progress", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 				go postTrackerChangeLog(event.Event, "in_progress", "", callback.User.Name)
-				w.WriteHeader(http.StatusOK)
-
-			case "drift_in_progress":
-				event := getTrackerEvent(callback.Message.Timestamp)
-				postThreadAction("drift_in_progress", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
-				go postTrackerChangeLog(event.Event, "drift_in_progress", "", callback.User.Name)
 				w.WriteHeader(http.StatusOK)
 
 			case "pause":
@@ -785,7 +790,20 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 
 			case "cancelled":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				updateTrackerEvent(event.Event, 2, 1)
+				// Determine event type
+				eventType := 1
+				switch event.Event.Attributes.Type {
+				case "deployment":
+					eventType = 1
+				case "operation":
+					eventType = 2
+				case "drift":
+					eventType = 3
+				case "incident":
+					eventType = 4
+				}
+				// Update Tracker status to failure (2)
+				updateTrackerEvent(event.Event, 2, eventType)
 				postThreadAction("cancelled", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 				go postTrackerChangeLog(event.Event, "cancelled", "", callback.User.Name)
 				w.WriteHeader(http.StatusOK)
@@ -798,14 +816,44 @@ func handleBlockActions(w http.ResponseWriter, callback slack.InteractionCallbac
 
 			case "done":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				updateTrackerEvent(event.Event, 3, 1)
+				// Determine event type
+				eventType := 1
+				switch event.Event.Attributes.Type {
+				case "deployment":
+					eventType = 1
+				case "operation":
+					eventType = 2
+				case "drift":
+					eventType = 3
+				case "incident":
+					eventType = 4
+				}
+				// Update Tracker status to done (11) for drift/incident or success (3) for deployment/operation/rpa
+				status := 11
+				if eventType == 1 || eventType == 2 {
+					status = 3 // success for deployment/operation/rpa
+				}
+				updateTrackerEvent(event.Event, status, eventType)
 				postThreadAction("done", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 				go postTrackerChangeLog(event.Event, "done", "", callback.User.Name)
 				w.WriteHeader(http.StatusOK)
 
 			case "close":
 				event := getTrackerEvent(callback.Message.Timestamp)
-				updateTrackerEvent(event.Event, 10, 3)
+				// Determine event type
+				eventType := 3
+				switch event.Event.Attributes.Type {
+				case "deployment":
+					eventType = 1
+				case "operation":
+					eventType = 2
+				case "drift":
+					eventType = 3
+				case "incident":
+					eventType = 4
+				}
+				// Update Tracker status to close (10)
+				updateTrackerEvent(event.Event, 10, eventType)
 				postThreadAction("close", callback.Channel.ID, callback.Message.Timestamp, callback.User.Name)
 				go postTrackerChangeLog(event.Event, "close", "", callback.User.Name)
 				w.WriteHeader(http.StatusOK)
@@ -831,16 +879,11 @@ func postTrackerChangeLog(event EventReponse, action string, note string, user s
 		changeType = "approved"
 	case "rejected":
 		changeType = "rejected"
-	case "in_progress", "drift_in_progress", "done", "close", "pause", "post_poned", "cancelled":
+	case "in_progress", "done", "close", "pause", "post_poned", "cancelled":
 		changeType = "status_changed"
 		field = "status"
 		oldValue = event.Attributes.Status
-		switch action {
-		case "drift_in_progress":
-			newValue = "in_progress"
-		default:
-			newValue = action
-		}
+		newValue = action
 	}
 
 	entry := map[string]interface{}{
@@ -909,9 +952,6 @@ func postThreadAction(action string, channelID string, messageTs string, user st
 	case "in_progress":
 		message = fmt.Sprintf(":loading: In progress by <@%s>", user)
 		reaction = "loading"
-	case "drift_in_progress":
-		message = fmt.Sprintf(":warning: Drift In progress by <@%s>", user)
-		reaction = "warning"
 	case "pause":
 		message = fmt.Sprintf(":double_vertical_bar: Paused by <@%s>", user)
 		reaction = "double_vertical_bar"
@@ -1066,7 +1106,24 @@ func postTrackerEvent(tracker tracker) {
 	data.Attributes.Priority = getPriorityWithDefault(tracker.Priority)
 	data.Attributes.Service = tracker.Project
 	data.Attributes.Source = "slack"
-	data.Attributes.Status = 
+	
+	// Set status based on event type
+	// Deployment (1), Operation (2), RPA Usage (2) -> planned (13)
+	// Drift (3) -> open (9)
+	// Incident (4) -> open (9)
+	switch tracker.Type {
+	case 1: // Deployment
+		data.Attributes.Status = 13 // planned
+	case 2: // Operation or RPA Usage
+		data.Attributes.Status = 13 // planned
+	case 3: // Drift
+		data.Attributes.Status = 9 // open
+	case 4: // Incident
+		data.Attributes.Status = 9 // open
+	default:
+		data.Attributes.Status = 1 // default
+	}
+	
 	data.Attributes.Type = tracker.Type
 	data.Attributes.Environment = environment[tracker.Environment]
 	if tracker.Impact == "Yes" {
@@ -1326,90 +1383,21 @@ func updateTrackerEventSlackId(eventId string, slackId string) error {
 		return fmt.Errorf("slackId is required")
 	}
 
-	// Récupérer l'événement complet par son ID
-	resp, err := http.Get(os.Getenv("TRACKER_HOST") + "/api/v1alpha1/event/" + eventId)
-	if err != nil {
-		return fmt.Errorf("failed to get event: %w", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			logger.Error("Failed to close response body", slog.Any("error", err))
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to get event (status %d): %s", resp.StatusCode, string(bodyBytes))
+	// Créer le payload avec le slackId
+	payload := map[string]string{
+		"slack_id": slackId,
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response: %w", err)
-	}
-
-	var event Response
-	if err := json.Unmarshal(body, &event); err != nil {
-		return fmt.Errorf("failed to parse event: %w", err)
-	}
-
-	// Créer le payload complet avec le slackId mis à jour
-	var data Payload
-	data.Id = eventId // Ajouter l'ID de l'événement
-	data.Attributes.Message = event.Event.Attributes.Message
-	data.Attributes.Priority = getPriorityWithDefault(event.Event.Attributes.Priority)
-	data.Attributes.Service = event.Event.Attributes.Service
-	data.Attributes.Source = event.Event.Attributes.Source
-
-	// Convertir le statut string en int (garder le statut actuel)
-	statusMap := map[string]int{
-		"pending":     1,
-		"in_progress": 12,
-		"done":        3,
-		"cancelled":   2,
-		"close":       10,
-	}
-	if statusInt, ok := statusMap[strings.ToLower(event.Event.Attributes.Status)]; ok {
-		data.Attributes.Status = statusInt
-	} else {
-		data.Attributes.Status = 1 // Default
-	}
-
-	// Convertir le type string en int
-	typeMap := map[string]int{
-		"deployment": 1,
-		"operation":  2,
-		"drift":      3,
-		"incident":   4,
-		"rpa_usage":  5,
-	}
-	if typeInt, ok := typeMap[strings.ToLower(event.Event.Attributes.Type)]; ok {
-		data.Attributes.Type = typeInt
-	} else {
-		data.Attributes.Type = 1 // Default
-	}
-
-	data.Attributes.Environment = environmentMap[event.Event.Attributes.Environment]
-	data.Attributes.Impact = event.Event.Attributes.Impact
-	data.Attributes.StartDate = event.Event.Attributes.StartDate
-	data.Attributes.EndDate = event.Event.Attributes.EndDate
-	data.Attributes.Owner = event.Event.Attributes.Owner
-	data.Links.PullRequestLink = event.Event.Links.PullRequestLink
-	data.Links.Ticket = event.Event.Links.Ticket
-	data.Title = event.Event.Title
-	data.SlackId = slackId // Mettre à jour le slackId
-	data.Attributes.StakeHolders = event.Event.Attributes.StakeHolders
-	data.Attributes.Notifications = event.Event.Attributes.Notifications
-
-	payloadBytes, err := json.Marshal(data)
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	// Construire l'URL de l'API
-	urlStr := os.Getenv("TRACKER_HOST") + "/api/v1alpha1/event"
+	// Construire l'URL de l'API avec le nouvel endpoint
+	urlStr := fmt.Sprintf("%s/api/v1alpha1/event/%s/slack", os.Getenv("TRACKER_HOST"), eventId)
 
-	// Créer la requête PUT
-	req, err := http.NewRequest("PUT", urlStr, bytes.NewReader(payloadBytes))
+	// Créer la requête POST
+	req, err := http.NewRequest("POST", urlStr, bytes.NewReader(payloadBytes))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -1417,20 +1405,20 @@ func updateTrackerEventSlackId(eventId string, slackId string) error {
 
 	// Exécuter la requête
 	client := &http.Client{Timeout: 10 * time.Second}
-	respPut, err := client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer func() {
-		if err := respPut.Body.Close(); err != nil {
+		if err := resp.Body.Close(); err != nil {
 			logger.Error("Failed to close response body", slog.Any("error", err))
 		}
 	}()
 
 	// Vérifier le statut de la réponse
-	if respPut.StatusCode < 200 || respPut.StatusCode >= 300 {
-		bodyBytes, _ := io.ReadAll(respPut.Body)
-		return fmt.Errorf("API returned status %d: %s", respPut.StatusCode, string(bodyBytes))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	logger.Debug("SlackId updated successfully",
