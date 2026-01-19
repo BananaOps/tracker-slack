@@ -575,7 +575,7 @@ func blockOperationMessage(tracker tracker) []slack.Block {
 	}
 
 	summary := fmt.Sprintf("⚙️ *Operation: %s* \n \n", tracker.Summary)
-	project := fmt.Sprintf("� *Prroject:* %s \n", tracker.Project)
+	project := fmt.Sprintf("🚀 *Project:* %s \n", tracker.Project)
 	date := fmt.Sprintf("📅 *Start Date:* %s %s \n", formattedTime, location.String())
 	environment := fmt.Sprintf("%s *Environment:* %s \n", priorityEnv[tracker.Environment], tracker.Environment)
 	priority := fmt.Sprintf("🎯 *Priority:* %s \n", tracker.Priority)
