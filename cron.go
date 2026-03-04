@@ -79,6 +79,7 @@ func listEventToday() {
 // fetchEvents récupère les événements du jour depuis l'API
 func fetchEvents() ([]TodayEventReponse, error) {
 	resp, err := http.Get(os.Getenv("TRACKER_HOST") + "/api/v1alpha1/events/today")
+// #nosec G107 - TRACKER_HOST is a controlled environment variable
 	if err != nil {
 		return []TodayEventReponse{}, fmt.Errorf("erreur lors de l'appel API : %v", err)
 	}
@@ -336,6 +337,7 @@ func fetchEventsToSync() ([]EventToSync, error) {
 		slog.String("end_date", endDate),
 		slog.String("url", fullURL))
 
+// #nosec G107 - TRACKER_HOST is a controlled environment variable
 	resp, err := http.Get(fullURL)
 	if err != nil {
 		return nil, fmt.Errorf("API call failed: %w", err)

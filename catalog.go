@@ -118,6 +118,7 @@ func fetchProjectsFromAPI() ([]string, error) {
 	logger.Debug("Fetching projects from API", slog.String("url", apiURL))
 
 	resp, err := client.Get(apiURL)
+// #nosec G107 - TRACKER_HOST is a controlled environment variable
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch catalogs: %w", err)
 	}
