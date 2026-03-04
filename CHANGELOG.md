@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/BananaOps/tracker-slack/compare/v0.8.0...v0.9.0) (2026-03-04)
+
+
+### Features
+
+* add build multiplatform ([#43](https://github.com/BananaOps/tracker-slack/issues/43)) ([99f4b70](https://github.com/BananaOps/tracker-slack/commit/99f4b705d70a14e45a234806ba5230a188f96ec5))
+
 ## [0.8.0](https://github.com/BananaOps/tracker-slack/compare/v0.7.0...v0.8.0) (2026-01-19)
 
 
